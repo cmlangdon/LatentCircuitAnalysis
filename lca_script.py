@@ -27,7 +27,7 @@ inputs, labels, conditions = load_embedded_model_data(model_id)
 
 # Choose hyperparameters
 hyperparameters = {'lr': .001,
-                   'max_epochs': 3000}
+                   'max_epochs': 10}
 
 # Initialize latent nets
 recurrent_mask = torch.ones(8, 8).float().to(device=device)
@@ -52,17 +52,11 @@ print('Fitting...')
 latent_net.fit(inputs, labels)
 
 # Compute w_error and q_error:
-model_A = torch.zeros((8,14))
-model_A[:8,:8] = torch.tensor((Model() & {'model_id':  model_id}).fetch1('w_rec'))
-model_A[:8,8:] = torch.tensor((Model() & {'model_id':  model_id}).fetch1('w_in'))
-
-latent_A = torch.zeros((8,14))
-latent_A[:8,:6] = latent_net.module_.recurrent_layer.weight.data
-latent_A[:8,8:] = latent_net.module_.input_layer.weight.data
-
-w_error = torch.norm(model_A-latent_A) / torch.norm(model_A)
-q_true = (EmbeddedTrial() & {'model_id':model_id})
-q_error = torch.norm(latent_net.module_.q.weight.data - q_true) / torch.norm(q_true)
+w_rec = (Model() & {'model_id': model_id}).fetch1('w_rec')
+w_rec_true = latent_net.module_.recurrent_layer.weight.data.detach().cpu().numpy()
+w_error = np.linalg.norm(w_rec-w_rec_true) / np.linalg.norm(w_rec)
+q_true = (EmbeddedTrial() & {'model_id':model_id}).fetch('q')[0]
+q_error = np.linalg.norm(latent_net.module_.q.detach().cpu().numpy() - q_true) / np.linalg.norm(q_true)
 
 # Populate LCA table
 results = {'model_id': model_id,
