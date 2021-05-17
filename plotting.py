@@ -715,3 +715,110 @@ def plot_figure_six(lca_table, model_table):
     w_ext = np.concatenate((w_in,w_out.T),axis=1)
     print(q.shape)
     sns.heatmap(w_ext @ q )
+    
+    
+    
+# Figure Eight
+# FIGURE FOUR
+def plot_figure_eight(q, trial_table):
+    gs = gridspec.GridSpec(1, 4,hspace=.5) 
+    plt.figure(figsize=(24,4)) 
+    
+    n_trials = trial_table.fetch().shape[0]
+    z = trial_table.fetch('output')
+    correct_choice = trial_table.fetch('correct_choice')
+    context = trial_table.fetch('context')
+    motion_coh = trial_table.fetch('motion_coh')
+    color_coh = trial_table.fetch('color_coh')
+    x = np.stack(trial_table.fetch('hidden')) @ q
+
+    id_df = pd.DataFrame([])
+    T = 15
+    for i in range(900):
+        for t in range(15):
+            if (context[i]=="motion" and motion_coh[i]<color_coh[i]) or (context[i]=="color" and motion_coh[i]>color_coh[i]):
+                data = {'time': t*5 ,
+                        'correct_choice': correct_choice[i],
+                        'motion_coh': motion_coh[i],
+                        'color_coh': color_coh[i],
+                        'context_x': float(x[i][t*5,0] ),
+                        'motion_x': float(x[i][t*5,1] ),
+                        'color_x': float(x[i][t*5,2]),
+                        'choice_x': float(x[i][t*5,3]),
+                       'trial':i,
+                       'context': context[i]}
+
+                data = pd.DataFrame(data.items())
+                data = data.transpose()
+                data.columns = data.iloc[0]
+                data = data.drop(data.index[[0]])
+                id_df = id_df.append(data)
+
+    id_df["correct_choice"] = id_df["correct_choice"].astype(float)
+
+    id_df["time"] = id_df["time"].astype(float)
+    id_df["context_x"] = id_df["context_x"].astype(float)
+
+    id_df["motion_x"] = id_df["motion_x"].astype(float)
+
+    id_df["color_x"] = id_df["color_x"].astype(float)
+    id_df["choice_x"] = id_df["choice_x"].astype(float)
+
+    id_df["motion_coh"] = id_df["motion_coh"].astype(float)
+    id_df["color_coh"] = id_df["color_coh"].astype(float)
+
+    # context
+    plt.subplot(gs[0])
+    palette = sns.color_palette("coolwarm", 2)
+    sns.lineplot(
+    data=id_df,
+    x="time",
+    y="context_x",
+    style='context',
+    palette=palette,
+    legend='brief',
+    )
+    plt.legend(loc='upper left')
+    
+    #Color 
+    plt.subplot(gs[1])
+    palette = sns.color_palette("coolwarm", 2)
+    sns.lineplot(
+    data=id_df,
+    x="time",
+    y="color_x",
+    hue='color_coh',
+    style='context',
+    palette=palette,
+    legend='brief',
+    )
+    plt.legend(loc='upper left')
+    
+    # Motion 
+    plt.subplot(gs[2])
+    palette = sns.color_palette("coolwarm", 6)
+    sns.lineplot(
+    data=id_df,
+    x="time",
+    y="motion_x",
+    hue = 'motion_coh',
+    style='context',
+    palette=palette,
+    legend='brief',
+    )
+    plt.legend(loc='upper left')
+    
+    # Choice
+    plt.subplot(gs[3])
+    palette = sns.color_palette("coolwarm", 2)
+    sns.lineplot(
+    data=id_df,
+    x="time",
+    y="choice_x",
+    hue = 'correct_choice',
+    style='context',
+    palette=palette,
+    legend='brief',
+    )
+    plt.legend(loc='upper left')
+

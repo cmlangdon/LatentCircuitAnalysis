@@ -96,11 +96,11 @@ class RNNNet(NeuralNetRegressor):
         if isinstance(self.criterion_, torch.nn.Module):
             self.criterion_.train(training)
 
-        return L2_task(y, y_pred[0])# + \
-               # self.module_.lambda_r * L2_rate(y, y_pred[2]) +\
-               # self.module_.lambda_w * L2_weight(self) +\
-               # self.module_.lambda_o * L2_ortho(self) +\
-               # self.module_.lambda_i * L2_invar(self)
+        return L2_task(y, y_pred[0]) + \
+                self.module_.lambda_r * L2_rate(y, y_pred[2]) +\
+                self.module_.lambda_w * L2_weight(self) +\
+                self.module_.lambda_o * L2_ortho(self) +\
+                self.module_.lambda_i * L2_invar(self)
 
     def train_step(self, Xi, yi, **fit_params):
         step_accumulator = self.get_train_step_accumulator()

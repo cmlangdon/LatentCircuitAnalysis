@@ -1,30 +1,30 @@
 """
-For a given model, take random Q and embedded the hidden states for each trial.
+For a given model, embed trials using a random orthogonal q.
 """
 import torch
-import numpy as np
 from datajoint_tables import *
 
+model_id = "fdtFi2Nw"
+n = (Model() & {'model_id': model_id}).fetch1('n')
 N = 150
-model_id="6rV5JuQH"
-lca_id = "RdzDulrS"
-n = 8
-model_data = (LCATrial() & {'lca_id': lca_id}).fetch(as_dict=True)
 
-A = torch.nn.Parameter(torch.rand(N, N))
-Q = (torch.eye(N) - (A - A.t()) / 2) @ torch.inverse(torch.eye(N) + (A - A.t()) / 2)
-q = Q[:n, :].detach().numpy()
+# Construct random orthogonal Q
+A = np.random.rand(N, N)
+Q = (np.eye(N) - (A - A.T) / 2) @ np.linalg.inv(np.eye(N) + (A - A.T) / 2)
+q = Q[:n, :]
 
-for i in range(len(model_data)):
-    print(i)
-    trial_data = {
-        'model_id': model_id,
-        'lca_id': lca_id,
-                 'trial_id': model_data[i]['trial_id'],
-                'context':model_data[i]['context'],
-                'motion_coh':model_data[i]['motion_coh'],
-                'color_coh':model_data[i]['color_coh'],
-                'q': q,
-                'xq': model_data[i]['y_pred'][:,:-2] @ q}
-    EmbeddedLCATrial().insert1(trial_data)
+trial_data = (Trial() & {'model_id': model_id}).fetch(as_dict=True)
 
+for k in range(len(trial_data)):
+    print(k)
+    EmbeddedTrial().insert1({'model_id': model_id,
+                     'trial_id': k,
+                     'context':trial_data[k]['context'],
+                    'motion_coh': trial_data[k]['motion_coh'],
+                    'color_coh': trial_data[k]['color_coh'],
+                    'correct_choice': trial_data[k]['correct_choice'],
+                     'input': trial_data[k]['input'],
+                     'hidden': trial_data[k]['hidden'] @ q,
+                     'output': trial_data[k]['output'],
+                    'q': q
+                       })

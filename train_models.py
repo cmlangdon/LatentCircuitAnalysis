@@ -5,7 +5,6 @@ import torch.nn as nn
 from Connectivity import *
 from Trials import *
 from RNN import *
-from psychometrics import *
 from skorch import scoring
 import random as rdm
 import string
@@ -48,8 +47,8 @@ rnn_net = RNNNet(
     module__lambda_i=0,
     warm_start=False,
     lr=.001,
-    baseline=.01,
-    max_epochs=2000,
+    baseline=.015,
+    max_epochs=1000,
     batch_size=180,
     module__mask = mask,
     optimizer=torch.optim.Adam,

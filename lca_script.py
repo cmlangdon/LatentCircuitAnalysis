@@ -17,17 +17,20 @@ print('Device: ' + device)
 # task_id = int(os.environ['SGE_TASK_ID'])
 
 # Load data for model
-model_id = "fdtFi2Nw"
+model_id = "5a8Myb4M"
 print('Loading model dimension...')
-#N = (Model() & {'model_id': model_id}).fetch1('n')
-N=150
+
+N = (Model() & {'model_id': model_id}).fetch1('n')
+#N=150
+
 print('Loading data...')
-#inputs, labels, conditions = load_model_data(model_id)
-inputs, labels, conditions = load_embedded_model_data(model_id)
+
+inputs, labels, conditions = load_model_data(model_id)
+#inputs, labels, conditions = load_embedded_model_data(model_id)
 
 # Choose hyperparameters
-hyperparameters = {'lr': .001,
-                   'max_epochs': 10}
+hyperparameters = {'lr': .01,
+                   'max_epochs': 1500}
 
 # Initialize latent nets
 recurrent_mask = torch.ones(8, 8).float().to(device=device)
@@ -45,18 +48,18 @@ latent_net = LatentNet(
     lr=hyperparameters['lr'],
     max_epochs=hyperparameters['max_epochs'],
     optimizer=torch.optim.Adam,
-    device=device
+    device=device,
 )
 print('Fitting...')
 # Fit LCA
 latent_net.fit(inputs, labels)
 
 # Compute w_error and q_error:
-w_rec = (Model() & {'model_id': model_id}).fetch1('w_rec')
-w_rec_true = latent_net.module_.recurrent_layer.weight.data.detach().cpu().numpy()
-w_error = np.linalg.norm(w_rec-w_rec_true) / np.linalg.norm(w_rec)
-q_true = (EmbeddedTrial() & {'model_id':model_id}).fetch('q')[0]
-q_error = np.linalg.norm(latent_net.module_.q.detach().cpu().numpy() - q_true) / np.linalg.norm(q_true)
+# w_rec = (Model() & {'model_id': model_id}).fetch1('w_rec')
+# w_rec_true = latent_net.module_.recurrent_layer.weight.data.detach().cpu().numpy()
+# w_error = np.linalg.norm(w_rec-w_rec_true) / np.linalg.norm(w_rec)
+# q_true = (EmbeddedTrial() & {'model_id':model_id}).fetch('q')[0]
+# q_error = np.linalg.norm(latent_net.module_.q.detach().cpu().numpy() - q_true) / np.linalg.norm(q_true)
 
 # Populate LCA table
 results = {'model_id': model_id,
@@ -68,9 +71,9 @@ results = {'model_id': model_id,
            'w_rec': latent_net.module_.recurrent_layer.weight.data.detach().cpu().numpy(),
            'w_in': latent_net.module_.input_layer.weight.data.detach().cpu().numpy(),
             'w_out': latent_net.module_.output_layer.weight.data.detach().cpu().numpy(),
-           'q': latent_net.module_.q.detach().cpu().numpy(),
-            'w_error': w_error.detach().cpu().numpy(),
-            'q_error': q_error.detach().cpu().numpy()}
+           'q': latent_net.module_.q.detach().cpu().numpy()}
+            #'w_error': w_error,
+            #'q_error': q_error}
 LCA.insert1(results)
 
 # Populate LCATrial table
