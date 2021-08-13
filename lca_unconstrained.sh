@@ -1,7 +1,7 @@
 #!/usr/bin/bash
-#$ -t 1-1
-#$ -N langdon
+#$ -t 1-30
+#$ -N lca
 #$-cwd
 #$ -l gpu=1
 #$ -l m_mem_free=20G
-python simulate_perturbation.py
+python -u lca_unconstrained.py

@@ -1,6 +1,6 @@
 #!/usr/bin/bash
-#$ -t 1-100
-#$ -N langdon_lca
+#$ -t 1-200
+#$ -N lca
 #$-cwd
 #$ -l gpu=1
 #$ -l m_mem_free=20G

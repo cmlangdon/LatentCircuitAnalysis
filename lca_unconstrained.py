@@ -20,19 +20,20 @@ else:
 print('Device: ' + device)
 
 # Get environmental variable 'task_id'
-task_id = int(os.environ['SGE_TASK_ID'])
-
+#task_id = int(os.environ['SGE_TASK_ID'])
+task_id=0
 # Get model ids
-model_id = ["3kOtND7Y"]
+lca_id = "fDeLRaWE"
+model_id = (LCA() & {'lca_id': lca_id}).fetch('model_id')
 
 # Set parameter grid
 lr = [.01]
-patience = [50]
+patience = [100]
 threshold = [.0001]
 batch_size = [128]
 sigma_rec = [0.15]
 weight_decay=[0]
-param_grid = np.repeat(np.array([x for x in itertools.product(model_id,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=200, axis=0)
+param_grid = np.repeat(np.array([x for x in itertools.product(model_id,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=5, axis=0)
 
 parameters = {'model_id': param_grid[task_id-1][0],
                'sigma_rec': (param_grid[task_id-1][1]).astype(float),
@@ -106,10 +107,11 @@ latent_net = LatentNet(
     module__recurrent_mask=recurrent_mask.to(device=device),
     module__input_mask=input_mask.to(device=device),
     module__output_mask=output_mask.to(device=device),
+    constrained=False,
     warm_start=False,
     lr=parameters['lr'],
     batch_size=int(parameters['batch_size']),
-    max_epochs=20000,
+    max_epochs=10000,
     optimizer=torch.optim.Adam,
     device=device,
     callbacks=[EpochScoring(r2_x, on_train=False),
@@ -119,9 +121,16 @@ latent_net = LatentNet(
                              threshold=parameters['threshold'],
                              lower_is_better=True)]
 )
+latent_net.initialize()
+latent_net.module_.recurrent_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': lca_id}).fetch1('w_rec'))
+latent_net.module_.input_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': lca_id}).fetch1('w_in'))
+latent_net.module_.output_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': lca_id}).fetch1('w_out'))
+latent_net.module_.A.weight = torch.from_numpy((LCA() & {'lca_id': lca_id}).fetch1('a'))
+latent_net.module_.q = torch.from_numpy((LCA() & {'lca_id': lca_id}).fetch1('q'))
 print('Fitting...')
+
 # Fit LCA
-latent_net.fit(inputs, labels)
+latent_net.partial_fit(inputs, labels)
 
 # Compute w_error and q_error:
 # w_rec = (Model() & {'model_id': model_id}).fetch1('w_rec')
@@ -131,7 +140,8 @@ latent_net.fit(inputs, labels)
 
 # Populate LCA table
 results = {'model_id': model_id,
-           'lca_id': ''.join(rdm.choices(string.ascii_letters + string.digits, k=8)),
+           'lca_id': lca_id,
+            'lca2_id': ''.join(rdm.choices(string.ascii_letters + string.digits, k=8)),
            **parameters,
            'alpha': latent_net.module_.alpha.cpu().numpy(),
            'sigma_rec': latent_net.module_.sigma_rec.cpu().numpy(),
@@ -154,5 +164,5 @@ results = {'model_id': model_id,
            'a': latent_net.module_.A.detach().cpu().numpy()}
             #'w_error': w_error,
             #'q_error': q_error}
-LCA.insert1(results)
+LCA_unconstrained.insert1(results)
 

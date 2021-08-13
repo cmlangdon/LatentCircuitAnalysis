@@ -28,7 +28,7 @@ else:
 
 
 class RNNModule(torch.nn.Module):
-    def __init__(self, connectivity, mask, n, radius,lambda_r, lambda_o, lambda_i, lambda_w, tau=200, sigma_rec=.15):
+    def __init__(self, connectivity, mask, n, embedding=False, radius=1.5,lambda_r=0, lambda_o=0, lambda_i=0, lambda_w=0, tau=200, sigma_rec=.15):
         super(RNNModule, self).__init__()
         self.alpha = .2
         self.tau = tau
@@ -36,13 +36,25 @@ class RNNModule(torch.nn.Module):
         self.connectivity = connectivity
         self.mask = mask
         self.n = n
+        self.N = 150
         self.input_size = 6
         self.output_size = 2
         self.radius = radius
         self.lambda_r = lambda_r
         self.lambda_o = lambda_o
-        self.lambda_i = lambda_i
         self.lambda_w = lambda_w
+
+        if embedding:
+            self.A = torch.rand(self.N, self.N, device=device)
+            self.Q = (torch.eye(self.N, device=device) - (self.A - self.A.t()) / 2) @ torch.inverse(
+                torch.eye(self.N, device=device) + (self.A - self.A.t()) / 2)
+            self.q = self.Q[:self.n, :]
+            self.q = self.q.to(device=device)
+            self.embedding = self.q
+        else:
+            self.embedding = torch.eye(self.n)
+
+
 
         if connectivity == 'large':
             self.dale = True
@@ -63,13 +75,14 @@ class RNNModule(torch.nn.Module):
             self.recurrent_mask, self.input_mask, self.output_mask = small_connectivity(device=device)
 
             self.recurrent_layer = nn.Linear(self.n, self.n, bias=False)
-            self.recurrent_layer.weight.data = self.recurrent_mask * self.recurrent_layer.weight.data.to(device=device)
+            self.recurrent_layer.weight.data = 0 * self.recurrent_mask * self.recurrent_layer.weight.data.to(device=device)
 
             self.input_layer = nn.Linear(self.input_size, self.n, bias=False)
             self.input_layer.weight.data = self.input_mask * self.input_layer.weight.data.to(device=device)
 
             self.output_layer = nn.Linear( self.n, self.output_size, bias=False)
             self.output_layer.weight.data = self.output_mask * self.output_layer.weight.data.to(device=device)
+
 
     def forward(self, u):
         t = u.shape[1]
@@ -99,8 +112,7 @@ class RNNNet(NeuralNetRegressor):
         return L2_task(y, y_pred[0]) + \
                 self.module_.lambda_r * L2_rate(y, y_pred[2]) +\
                 self.module_.lambda_w * L2_weight(self) +\
-                self.module_.lambda_o * L2_ortho(self) +\
-                self.module_.lambda_i * L2_invar(self)
+                self.module_.lambda_o * L2_ortho(self)
 
     def train_step(self, Xi, yi, **fit_params):
         step_accumulator = self.get_train_step_accumulator()
@@ -116,9 +128,11 @@ class RNNNet(NeuralNetRegressor):
             self.module_.recurrent_layer.weight.data = torch.relu(
                 self.module_.recurrent_layer.weight.data * self.module_.dale_mask) * self.module_.dale_mask
 
-        self.module_.recurrent_layer.weight.data = self.module_.recurrent_mask * self.module_.recurrent_layer.weight.data
+        #self.module_.recurrent_layer.weight.data = torch.relu(self.module_.recurrent_layer.weight.data * self.module_.recurrent_mask) * self.module_.recurrent_mask
         self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(self.module_.input_layer.weight.data)
         self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
+
+
         return step_accumulator.get_step()
 
 # Task performance
@@ -152,13 +166,7 @@ def L2_ortho(net,X = None, y = None):
     return torch.norm(b.t() @ b - torch.diag(torch.diag(b.t() @ b)), p=2)
 
 
-def L2_invar(net,X = None, y = None):
-    #w_in = net.module_.input_layer.weight
-    #w_rec = net.module_.recurrent_layer.weight
-    #w_in_perp, _ = torch.solve(torch.zeros(w_in.shape[0],1,device=net.device),w_in )
-    #return torch.norm(w_in_perp.t() @ w_rec @ w_in)
-    #return torch.norm((net.module_.input_layer.weight @ net.module_.input_layer.weight.t() - torch.eye(net.module_.n,device=device)) @ net.module_.recurrent_layer.weight @ net.module_.input_layer.weight)
-    return 0.0
+
 
 # Stopping criteria
 def stopping(net,X, y):

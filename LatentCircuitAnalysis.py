@@ -14,7 +14,7 @@ else:
 
 
 class LatentModule(torch.nn.Module):
-    def __init__(self, recurrent_mask, input_mask,output_mask, n, N):
+    def __init__(self, recurrent_mask, input_mask,output_mask, n, N, alpha, sigma_rec, weight_decay):
         super(LatentModule, self).__init__()
 
         self.recurrent_mask = recurrent_mask
@@ -22,8 +22,10 @@ class LatentModule(torch.nn.Module):
         self.output_mask = output_mask
         self.N = N
         self.n = n
+        self.alpha = torch.tensor(alpha).float()
+        self.sigma_rec = torch.tensor(sigma_rec).float()
+        self.weight_decay = weight_decay
         self.input_size = 6
-
         self.recurrent_layer = torch.nn.Linear(self.n, self.n, bias=False)
 
         self.input_layer = torch.nn.Linear(6, self.n, bias=False)
@@ -34,35 +36,28 @@ class LatentModule(torch.nn.Module):
         self.output_layer.weight.data = torch.cat((torch.zeros(2,self.n-2),torch.eye(2)),dim=1).float().to(device=device)
         self.output_layer.weight.requires_grad = True
 
-        #self.x0 = torch.nn.Parameter(torch.zeros(1, 1, self.n, device=device), requires_grad=True)
-
-        #self.q = torch.nn.Linear(self.n, self.N, bias=False)
-        #self.q.weight.data = self.q.weight.data / torch.norm(self.q.weight.data,dim=0)
-
         self.A = torch.nn.Parameter(torch.rand(self.N, self.N,device=device), requires_grad=True)
         self.Q = (torch.eye(self.N, device=device) - (self.A - self.A.t()) / 2) @ torch.inverse(torch.eye(self.N,device=device) + (self.A - self.A.t()) / 2)
         self.q = self.Q[:self.n, :]
         self.q = self.q.to(device=device)
 
-    def forward(self, u):
-        #u = u.reshape(u.shape[0], -1, self.input_size)
-        #y_0 = y_0.reshape(y_0.shape[0], 1, -1)
-        t = u.shape[1]
-        #x = y_0 @ self.q.weight.data.t()
-        #x = self.x0
-        x = torch.zeros(u.shape[0],1,self.n).to(device=device)
-        for i in range(t - 1):
-            #x_new = self.recurrent_layer(x[:, i, :]) + self.input_layer(u[:, i, :])
-            #noise = torch.sqrt(torch.tensor(2 * 0.2 * 0.15 ** 2)) * torch.empty(u.shape[0], t, self.n).normal_(mean=0,std=1).to(device=device)
-            x_new = (1 - .2) * x[:, i, :] + .2 * (
-                torch.relu(self.recurrent_layer(x[:, i, :]) + self.input_layer(u[:, i, :]) ))
 
-            x = torch.cat((x, x_new.unsqueeze_(1)), 1)
-        z = torch.relu(self.output_layer(x))
-        #y_pred = x @ self.q
-        #y_pred = self.q(x)
-        return x, z
-        #return y_pred.reshape(-1, y_pred.shape[1] * y_pred.shape[2])
+    def forward(self, u):
+        t = u.shape[1]
+        states = torch.zeros(u.shape[0], 1, self.n, device=device)
+        batch_size = states.shape[0]
+        noise = torch.sqrt(2 * self.alpha * self.sigma_rec ** 2) * torch.empty(batch_size, t, self.n).normal_(mean=0,
+                                                                                                              std=1).to(
+            device=device)
+
+        for i in range(t - 1):
+            state_new = (1 - self.alpha) * states[:, i, :] + self.alpha * (
+                torch.relu(self.recurrent_layer(states[:, i, :]) + self.input_layer(u[:, i, :]) + noise[:, i, :]))
+            states = torch.cat((states, state_new.unsqueeze_(1)), 1)
+
+
+        return   states, self.output_layer(states)
+
 
     def cayley_transform(self):
         skew = (self.A - self.A.t()) / 2
@@ -71,7 +66,7 @@ class LatentModule(torch.nn.Module):
         o = (eye - skew) @ torch.inverse(eye + skew)
         self.q = o[:self.n, :]
 
-
+# Callbacks
 def r2_scorer(y_true, y_pred):
     y_true = to_tensor(y_true,device=device)
     y_pred = to_tensor(y_pred,device=device)
@@ -81,10 +76,37 @@ def r2_scorer(y_true, y_pred):
 
 r2 = EpochScoring(scoring=make_scorer(r2_scorer), on_train=False)
 
+def r2_x(net, X , y):
+    y = to_tensor(y, device=device)
+    x = y[:, :, :-2]
+    q = net.module_.q.detach()
+    xqtq = x @ q.t() @ q
+    var_x = torch.var(x, unbiased=False)
+    return net.criterion_(x, xqtq) / var_x
+
+
+def r2_xqt(net, X, y):
+
+    xbar = net.predict(X)
+    xbar = to_tensor(xbar, device=device)
+    y = to_tensor(y, device=device)
+    x = y[:, :, :-2]
+    q = net.module_.q.detach()
+    xqt = x @ q.t()
+    var_xqt = torch.var(xqt, unbiased=False)
+    return net.criterion_(xqt, xbar) / var_xqt
+
+
+def L2_weight(net,X = None, y = None):
+    return torch.mean(torch.pow(net.module_.recurrent_layer.weight, 2))
+
+
 
 class LatentNet(NeuralNetRegressor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, constrained=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.constrained=constrained
 
     def get_loss(self, y_pred, y_true, X=None, training=False):
         y_true = to_tensor(y_true, device=self.device)
@@ -97,38 +119,20 @@ class LatentNet(NeuralNetRegressor):
 
         x = y_true[:, :, :-2]
         z = y_true[:, :, -2:]
-        xqtq = x @ self.module_.q.t() @ self.module_.q
-        xqt = x @ self.module_.q.t()
+        #xqtq = x @ self.module_.q.t() @ self.module_.q
+        #xqt = x @ self.module_.q.t()
 
-        return self.criterion_(x, xqtq) / self.criterion_(x, torch.zeros_like(x)) + \
-               self.criterion_(xqt, xbar) / self.criterion_(xqt, torch.zeros_like(xqt)) +\
-               self.criterion_(z, zbar) / self.criterion_(z, torch.zeros_like(z))
+        var_x = torch.var(x, unbiased=False)
+        #var_xqt = torch.var(xqt, unbiased=False)
+        var_z = torch.var(z, unbiased=False)
+
+        return self.criterion_(x, xbar @ self.module_.q) / var_x +\
+               self.criterion_(z, zbar) / var_z + \
+               self.module_.weight_decay * torch.mean(torch.pow(self.module_.recurrent_layer.weight, 2))
 
 
     def train_step(self, Xi, yi, **fit_params):
-        """Prepares a loss function callable and pass it to the optimizer,
-        hence performing one optimization step.
 
-        Loss function callable as required by some optimizers (and accepted by
-        all of them):
-        https://pytorch.org/docs/master/optim.html#optimizer-step-closure
-
-        The module is set to be in train mode (e.g. dropout is
-        applied).
-
-        Parameters
-        ----------
-        Xi : input data
-          A batch of the input data.
-
-        yi : target data
-          A batch of the target data.
-
-        **fit_params : dict
-          Additional parameters passed to the ``forward`` method of
-          the module and to the train_split call.
-
-        """
         step_accumulator = self.get_train_step_accumulator()
 
         def step_fn():
@@ -138,19 +142,23 @@ class LatentNet(NeuralNetRegressor):
             return step['loss']
 
         self.optimizer_.step(step_fn)
-        #self.module_.recurrent_layer.weight.data = self.module_.recurrent_mask * self.module_.recurrent_layer.weight.data # zero diagonal on recurrent
-        #self.module_.input_layer.weight.data =  torch.relu(self.module_.input_layer.weight.data)
-        #self.module_.input_layer.weight.data = self.module_.input_mask * self.module_.input_layer.weight.data # diagonal input
-        #self.module_.q.weight.data = self.module_.q.weight.data / torch.norm(self.module_.q.weight.data, dim=0) # normalized q
-        self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(self.module_.input_layer.weight.data)
-        self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(
-            self.module_.output_layer.weight.data)
 
-        #self.module_.input_layer.weight.data = self.module_.input_mask
+        # if self.history[-1, 'epoch']<self.max_diagonal_epoch:
+        #     self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(self.module_.input_layer.weight.data)
+        #     self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
+        # else:
+        #     self.module_.input_layer.weight.data = torch.relu(self.module_.input_layer.weight.data)
+        #     self.module_.output_layer.weight.data = torch.relu(self.module_.output_layer.weight.data)
+        if self.constrained:
+            self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(
+                self.module_.input_layer.weight.data)
+            self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
+        else:
+            self.module_.input_layer.weight.data = torch.relu(
+                self.module_.input_layer.weight.data)
+            self.module_.output_layer.weight.data = torch.relu(
+                self.module_.output_layer.weight.data)
         self.module_.cayley_transform()
-        #norm = self.module_.regression_layer.weight.data.norm(p=2, dim=0, keepdim=True)
-        #self.module_.regression_layer.weight.data = self.module_.regression_layer.weight.data.div(norm.expand_as(self.module_.regression_layer.weight.data))
-        #self.module_.regression_layer.weight.data = torch.relu(self.module_.regression_layer.weight.data)
 
         return step_accumulator.get_step()
 

@@ -8,8 +8,9 @@ from Trials import *
 import random as rdm
 import string
 import torch
-from psychometrics import *
 import pandas as pd
+from tdr import *
+from regression import *
 
 if torch.cuda.is_available():
     device = 'cuda'
@@ -58,7 +59,7 @@ class Perturbation(nn.Module, ABC):
 
 
 # Initialize perturbation class with connectivity from model.
-model_id = "6rV5JuQH"
+model_id = "5a8Myb4M"
 query = Model() & {'model_id': model_id}
 perturbation = Perturbation(tau=200,
                             sigma_rec=float(0.15),
@@ -90,12 +91,17 @@ inputs, labels, mask, conditions  = generate_trials(**trial_events,
                                             baseline=0.2,
                                             n_coh=6)
 # Define perturbation
-lca_id = 'mrhq0Ftn'
-lca_query = LCA() & {'lca_id': lca_id}
-direction = 2
-strength = .1
-q = lca_query.fetch('q')[0]
-p = strength * q[None, direction, :]
+#lca_id = 'DykEOu7Y'
+#b,q = tdr("5a8Myb4M")
+#lca_query = LCA() & {'lca_id': lca_id}
+q = linear_regression("5a8Myb4M")
+type = 'lr'
+direction = 'motion'
+strength = .01
+#q = lca_query.fetch1('q')
+#p = q[None, 2, :] - q[None, 3, :]
+p = q[None,1,:]
+p = strength * p / np.linalg.norm(p, axis=0)
 p = torch.tensor(p).float().to(device=device)
 
 
@@ -106,6 +112,7 @@ output, hidden = perturbation(inputs, p, float(0.2))
 # Populate model perturbation table
 results = {'model_id': model_id,
            'perturbation_id': ''.join(rdm.choices(string.ascii_letters + string.digits, k=3)),
+           'type': type,
            'direction': direction,
            'strength': strength}
 ModelPerturbation().insert1({**results})

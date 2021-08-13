@@ -135,7 +135,6 @@ def generate_trials( n_trials, alpha, tau, sigma_in, baseline, n_coh, n_t, cue_o
     perm = np.random.permutation(len(inputs))
     inputs = torch.tensor(inputs[perm, :, :]).float()
     targets = torch.tensor(targets[perm, :, :]).float()
-    dataset = torch.utils.data.TensorDataset(inputs, targets)
     conditions = [conditions[index] for index in perm]
 
     training_mask = np.append(range(stim_on),

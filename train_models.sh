@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#$ -t 1-10
+#$ -t 1-20
 #$ -N langdon_model_train
 #$-cwd
 #$ -l gpu=1

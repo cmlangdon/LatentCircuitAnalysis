@@ -63,6 +63,37 @@ def small_connectivity(device):
 
     output_mask = torch.cat((torch.zeros(2,6),torch.eye(2)),dim=1).float()
 
-    recurrent_mask = torch.ones(8,8)
+    #recurrent_mask = torch.ones(8,8)
+    w_rec = torch.eye(8)
+
+    # context mechanism
+    w_rec[[4,5],0]=-1
+    w_rec[[2,3],1]=-1
+
+    # Output
+    w_rec[6,[2,4]]=1
+    w_rec[7,[3,5]]=1
+
+    # Off diagonal
+    for i in range(4):
+        w_rec[2*i+1,2*i]=-1
+        w_rec[2*i,2*i+1]=-1
+
+    # stimulus competition    
+    #w_rec[4:6,2:4] = -1
+    #w_rec[2:4,4:6] = -1
+
+    # Context to choice
+    #w_rec[6:8,:2] = 1
+
+    # Stimulus to context
+    w_rec[0:2,2:6]=+1
+
+    # Choice to context
+    #w_rec[:2,6:]=-1
+
+    # Choice to stimulus
+    w_rec[2:6,6:]=-1
+    recurrent_mask = w_rec
 
     return recurrent_mask.to(device=device).float(), input_mask.to(device=device).float(), output_mask.to(device=device).float()
