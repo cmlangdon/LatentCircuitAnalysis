@@ -164,10 +164,10 @@ class Model_paper(dj.Manual):
        threshold: Decimal(6,5)
        lambda_r: decimal(8,6)                 # firing rate regularization constant
        lambda_o: decimal(8,6)                 # orthogonality regularization constant
-       task_performance: float
        valid_loss: float
        train_loss: float
        epochs: int
+       r2_task: float
        l2_ortho: float
        l2_rate: float
         w_rec: longblob
