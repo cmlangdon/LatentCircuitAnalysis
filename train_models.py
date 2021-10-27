@@ -24,7 +24,7 @@ task_id = int(os.environ['SGE_TASK_ID'])
 lr = [.01]
 lambda_r = [0.01]
 lambda_o = [1]
-patience = [25]
+patience = [50]
 threshold = [.0001]
 batch_size = [256]
 
