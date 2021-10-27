@@ -85,7 +85,7 @@ def r2_x(net, X , y):
     q = net.module_.q.detach()
     xqtq = x @ q.t() @ q
     var_x = torch.var(x, unbiased=False)
-    return net.criterion_(x, xqtq) / var_x
+    return 1 -net.criterion_(x, xqtq) / var_x
 
 
 def r2_xqt(net, X, y):
@@ -97,7 +97,7 @@ def r2_xqt(net, X, y):
     q = net.module_.q.detach()
     xqt = x @ q.t()
     var_xqt = torch.var(xqt, unbiased=False)
-    return net.criterion_(xqt, xbar) / var_xqt
+    return 1 -net.criterion_(xqt, xbar) / var_xqt
 
 
 def r2_z(net, X, y):
@@ -105,7 +105,7 @@ def r2_z(net, X, y):
     zbar = to_tensor(net.module_.output_layer(xbar), device=device)
     y = to_tensor(y, device=device)
     z = y[:, :, -2:]
-    return net.criterion_(z, zbar) / torch.var(z, unbiased=False)
+    return 1 -net.criterion_(z, zbar) / torch.var(z, unbiased=False)
 
 
 def rsquared(net, X, y):
@@ -114,7 +114,7 @@ def rsquared(net, X, y):
     x = torch.cat((xbar@ net.module_.q.detach(),zbar),dim=2)
     y = to_tensor(y, device=device)
 
-    return net.criterion_(y, x) / torch.var(y, unbiased=False)
+    return 1 - net.criterion_(y, x) / torch.var(y, unbiased=False)
 
 
 def L2_weight(net,X = None, y = None):
