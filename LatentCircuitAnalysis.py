@@ -14,10 +14,10 @@ else:
 
 
 class LatentModule(torch.nn.Module):
-    def __init__(self, recurrent_mask, input_mask,output_mask, n, N, alpha, sigma_rec, weight_decay,activation='relu'):
+    def __init__(self,  input_mask,output_mask, n, N, alpha, sigma_rec, weight_decay):
         super(LatentModule, self).__init__()
 
-        self.recurrent_mask = recurrent_mask
+
         self.input_mask = input_mask
         self.output_mask = output_mask
         self.N = N
@@ -29,10 +29,7 @@ class LatentModule(torch.nn.Module):
         self.recurrent_layer = torch.nn.Linear(self.n, self.n, bias=False)
         self.recurrent_layer.weight.data =torch.zeros(self.n, self.n).float().to(device=device)
 
-        if activation=='relu':
-            self.activation=torch.nn.ReLU(inplace=False)
-        if activation=='leakyrelu':
-            self.activation = torch.nn.LeakyReLU(negative_slope=0.01, inplace=False)
+        self.activation=torch.nn.ReLU()
 
         self.input_layer = torch.nn.Linear(6, self.n, bias=False)
         self.input_layer.weight.data = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0).float().to(device=device)
@@ -139,19 +136,6 @@ class LatentNet(NeuralNetRegressor):
 
         xbar = y_pred[0]
         zbar = y_pred[1]
-
-        # x = y_true[:, :, :-2]
-        # z = y_true[:, :, -2:]
-        # xqtq = x @ self.module_.q.t() @ self.module_.q
-        # xqt = x @ self.module_.q.t()
-        #
-        # var_x = torch.var(x, unbiased=False)
-        # var_xqt = torch.var(xqt, unbiased=False)
-        # var_z = torch.var(z, unbiased=False)
-
-        # return self.criterion_(x, xqtq) / var_x + \
-        #        self.criterion_(xqt, xbar) / var_xqt + \
-        #        self.criterion_(z, zbar) / var_z
 
         x = torch.cat((xbar @ self.module_.q, zbar), dim=2)
 
