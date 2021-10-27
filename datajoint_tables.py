@@ -178,4 +178,34 @@ class Model_paper(dj.Manual):
        """
 
 
+@schema
+class LCA_paper(dj.Manual):
+    definition = """
+    -> Model_paper
+    lca_id: char(8)                   
+    ---
+    alpha: Decimal(3,2)
+    sigma_rec: Decimal(3,2)
+    lr: Decimal(8,7)
+    weight_decay: Decimal(6,5)
+    patience: int
+    threshold: Decimal(8,7)
+    n_trials: int
+    batch_size: int
+    max_epochs: int
+    epochs: int
+    r2: Decimal(5,4)
+    r2_x: Decimal(5,4)
+    r2_xqt: Decimal(5,4)
+    r2_z: Decimal(5,4)
+    valid_loss: Decimal(6,5)
+    train_loss: Decimal(6,5)
+    valid_loss_history: longblob
+    train_loss_history: longblob
+    w_rec: longblob
+    w_in: longblob
+    w_out: longblob
+    q: longblob
+    a: longblob
 
+    """

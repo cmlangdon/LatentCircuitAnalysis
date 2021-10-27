@@ -89,9 +89,9 @@ class RNNModule(torch.nn.Module):
 
 
 class RNNNet(NeuralNetRegressor):
-    def __init__(self, baseline, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.baseline= baseline
+
 
     def get_loss(self, y_pred, y_true, X=None, training=False):
 

@@ -20,20 +20,22 @@ else:
 print('Device: ' + device)
 
 # Get environmental variable 'task_id'
-task_id = int(os.environ['SGE_TASK_ID'])
-#task_id=0
-# Get model ids
+#task_id = int(os.environ['SGE_TASK_ID'])
+task_id = 0
+# Get model_ids
+model_ids = (Model_paper()).fetch('model_id')
 
-model_ids = (Model() & 'n=100').fetch('model_id')
+# Define hyperparameter grid
 lr = [.02]
-#lr= list(np.round(10**np.linspace(-3,-1,25),4))
-patience = [50]
+patience = [25]
 threshold = [.0001]
 batch_size = [128]
 sigma_rec = [0.15]
 weight_decay=[0]
-param_grid = np.repeat(np.array([x for x in itertools.product(model_ids,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=5, axis=0)
+n_repeats = 5
+param_grid = np.repeat(np.array([x for x in itertools.product(model_ids,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=n_repeats, axis=0)
 
+# Select hyperparameters for this task
 parameters = {'model_id': param_grid[task_id-1][0],
                'sigma_rec': (param_grid[task_id-1][1]).astype(float),
               'lr': (param_grid[task_id-1][2]).astype(float),
@@ -42,58 +44,38 @@ parameters = {'model_id': param_grid[task_id-1][0],
               'batch_size': (param_grid[task_id-1][5]).astype(int),
               'weight_decay': (param_grid[task_id-1][6]).astype(float)}
 
+# Generate inputs and labels
+n_trials = 25
+inputs, labels, mask, conditions  = generate_trials(
+                                            n_trials=n_trials,
+                                            alpha=float(0.2),
+                                            tau=200,
+                                            sigma_in=.01,
+                                            baseline=0.2,
+                                            n_coh=4)
 
-# Load data for model
+# Reconstruct model from model_id
 model_id = parameters['model_id']
-print(model_id)
-N = (Model() & {'model_id': model_id}).fetch1('n')
-
-t = 3000
-dt = .2 * 200
-n_t = int(round(t / dt))
-trial_events = {'n_t': int(round(n_t)),
-                'cue_on': int(round(n_t * .1)),
-                'cue_off': int(round(n_t * .33)),
-                'stim_on': int(round(n_t * .4)),
-                'stim_off': int(round(n_t)),
-                'dec_on': int(round(n_t * .75)),
-                'dec_off': int(round(n_t))}
-
-
-# Load inputs and labels
-n_trials = 64
-inputs, _, mask, conditions = generate_trials(**trial_events,
-                                          n_trials=n_trials,
-                                          alpha=0.2,
-                                          tau=200,
-                                          sigma_in=.01,
-                                          baseline=0.2,
-                                          n_coh=6)
-
-n = (Model() & {'model_id':model_id}).fetch1('n')
+N = (Model_paper() & {'model_id':model_id}).fetch1('n')
 rnn_net = RNNNet(
     module=RNNModule,
-    module__n=n,
+    module__n=N,
     module__connectivity='large',
-    baseline=.015,
     module__mask = mask,
     device=device,
 )
 rnn_net.initialize()
+rnn_net.module_.recurrent_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_rec'), device= device)
+rnn_net.module_.input_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_in'),device=device)
+rnn_net.module_.output_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_out'),device=device)
 
-rnn_net.module_.recurrent_layer.weight.data = torch.tensor((Model() & {'model_id':model_id}).fetch1('w_rec'), device= device)
-rnn_net.module_.input_layer.weight.data = torch.tensor((Model() & {'model_id':model_id}).fetch1('w_in'),device=device)
-rnn_net.module_.output_layer.weight.data = torch.tensor((Model() & {'model_id':model_id}).fetch1('w_out'),device=device)
-
+# Simulate model
 x,_,z = rnn_net.forward(inputs.to(device=device),training=False)
-q_true = torch.tensor((Model() & {'model_id': model_id}).fetch1('embedding')).float()
-x = x.detach().cpu() @ q_true
+x = x.detach().cpu()
 z = z.detach().cpu()
 labels = torch.cat((x,z), dim=2)
 
 # Initialize latent nets
-recurrent_mask = torch.ones(8, 8).float().to(device=device)
-recurrent_mask = recurrent_mask - torch.diag(torch.diag(recurrent_mask))
 input_mask = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0)
 output_mask = torch.cat((torch.zeros(2,6),torch.eye(2)),dim=1)
 latent_net = LatentNet(
@@ -103,10 +85,8 @@ latent_net = LatentNet(
     module__alpha = 0.2,
     module__sigma_rec = parameters['sigma_rec'],
     module__weight_decay=parameters['weight_decay'],
-    module__recurrent_mask=recurrent_mask.to(device=device),
     module__input_mask=input_mask.to(device=device),
     module__output_mask=output_mask.to(device=device),
-    module__activation='relu',
     warm_start=False,
     lr=parameters['lr'],
     batch_size=int(parameters['batch_size']),
@@ -126,11 +106,7 @@ print('Fitting...')
 # Fit LCA
 latent_net.fit(inputs, labels)
 
-# Compute w_error and q_error:
-# w_rec = (Model() & {'model_id': model_id}).fetch1('w_rec')
-# w_rec_true = latent_net.module_.recurrent_layer.weight.data.detach().cpu().numpy()
-# w_error = np.linalg.norm(w_rec-w_rec_true) / np.linalg.norm(w_rec)
-# q_error = np.linalg.norm(latent_net.module_.q.detach().cpu().numpy() - q_true.numpy()) / np.linalg.norm(q_true.numpy())
+
 
 # Populate LCA table
 results = {'model_id': parameters['model_id'],
@@ -138,7 +114,6 @@ results = {'model_id': parameters['model_id'],
            **parameters,
            'alpha': latent_net.module_.alpha.cpu().numpy(),
            'sigma_rec': latent_net.module_.sigma_rec.cpu().numpy(),
-           'activation': latent_net.module_.activation,
            'weight_decay': parameters['weight_decay'],
            'n_trials': n_trials,
            'batch_size': latent_net.batch_size,
@@ -157,7 +132,5 @@ results = {'model_id': parameters['model_id'],
             'w_out': latent_net.module_.output_layer.weight.data.detach().cpu().numpy(),
            'q': latent_net.module_.q.detach().cpu().numpy(),
            'a': latent_net.module_.A.detach().cpu().numpy()}
-            #'w_error': w_error,
-            #'q_error': q_error}
-LCA.insert1(results)
+LCA_paper.insert1(results)
 

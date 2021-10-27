@@ -59,7 +59,6 @@ rnn_net = RNNNet(
     module__lambda_o=parameters['lambda_o'],
     warm_start=False,
     lr=parameters['lr'],
-    baseline=.01,
     max_epochs=10000,
     module__mask = mask,
     optimizer=torch.optim.Adam,
