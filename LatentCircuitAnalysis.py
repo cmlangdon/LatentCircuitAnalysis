@@ -7,7 +7,10 @@ from skorch.utils import to_tensor
 from torch.nn import functional as F
 
 
-
+if torch.cuda.is_available():
+    device = 'cuda'
+else:
+    device = 'cpu'
 
 
 class LatentModule(torch.nn.Module):

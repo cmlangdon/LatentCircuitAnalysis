@@ -149,6 +149,33 @@ class LCA_unconstrained(dj.Manual):
 
 
 
+# Tables for latent connectivity paper:
+@schema
+class Model_paper(dj.Manual):
+    definition = """
+       # model table
+       model_id: char(8)                      # unique model id
+       ---
+       connectivity: enum('small', 'large')   # specify connectivity structure
+       n: int                                 # number of neurons
+       lr: decimal(6,6)                       # learning rate
+       batch_size: int
+       patience: int
+       threshold: Decimal(6,5)
+       lambda_r: decimal(8,6)                 # firing rate regularization constant
+       lambda_o: decimal(8,6)                 # orthogonality regularization constant
+       task_performance: float
+       valid_loss: float
+       train_loss: float
+       epochs: int
+       l2_ortho: float
+       l2_rate: float
+        w_rec: longblob
+       w_in: longblob
+       w_out: longblob
+       train_loss_history: longblob
+       valid_loss_history: longblob
+       """
 
 
 

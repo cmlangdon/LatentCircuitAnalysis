@@ -103,8 +103,8 @@ def generate_trials( n_trials, alpha, tau, sigma_in, baseline, n_coh, n_t = 75):
     :return: mask
     :return: conditions: array of dict
     """
-    
-    
+
+    cohs = np.hstack((-10 ** np.linspace(0, -2, n_coh), 10 ** np.linspace(-2, 0, n_coh)))
 
     cue_on= int(round(n_t * .1))
     cue_off= int(round(n_t * .33))
@@ -118,8 +118,8 @@ def generate_trials( n_trials, alpha, tau, sigma_in, baseline, n_coh, n_t = 75):
     targets = []
     conditions = []
     for context in ["motion", "color"]:
-        for motion_coh in np.linspace(-.2, .2, n_coh):
-            for color_coh in np.linspace(-.2, .2, n_coh):
+        for motion_coh in cohs:
+            for color_coh in cohs:
                 for i in range(n_trials):
                     correct_choice = 1 if ((context == "motion" and motion_coh > 0) or (context == "color" and color_coh > 0)) else -1
                     conditions.append({'context': context, 'motion_coh': motion_coh, 'color_coh': color_coh, 'correct_choice':correct_choice})

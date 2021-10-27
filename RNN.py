@@ -28,7 +28,7 @@ else:
 
 
 class RNNModule(torch.nn.Module):
-    def __init__(self, connectivity, mask, n, activation='relu', embedding=False, radius=1.5,lambda_r=0, lambda_o=0, lambda_i=0, lambda_w=0, tau=200, sigma_rec=.15):
+    def __init__(self, connectivity, mask, n, radius=1.5,lambda_r=0, lambda_o=0, tau=200, sigma_rec=.15):
         super(RNNModule, self).__init__()
         self.alpha = .2
         self.tau = tau
@@ -42,25 +42,7 @@ class RNNModule(torch.nn.Module):
         self.radius = radius
         self.lambda_r = lambda_r
         self.lambda_o = lambda_o
-        self.lambda_w = lambda_w
-
-        if activation=='relu':
-            self.activation=torch.nn.ReLU(inplace=False)
-
-        if activation=='leakyrelu':
-            self.activation = torch.nn.LeakyReLU(negative_slope=.1, inplace=False)
-
-        if embedding:
-            self.A = torch.rand(self.N, self.N, device=device)
-            self.Q = (torch.eye(self.N, device=device) - (self.A - self.A.t()) / 2) @ torch.inverse(
-                torch.eye(self.N, device=device) + (self.A - self.A.t()) / 2)
-            self.q = self.Q[:self.n, :]
-            self.q = self.q.to(device=device)
-            self.embedding = self.q
-        else:
-            self.embedding = torch.eye(self.n)
-
-
+        self.activation = torch.nn.ReLU()
 
         if connectivity == 'large':
             self.dale = True
@@ -110,18 +92,15 @@ class RNNNet(NeuralNetRegressor):
     def __init__(self, baseline, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.baseline= baseline
+
     def get_loss(self, y_pred, y_true, X=None, training=False):
+
         y = to_tensor(y_true, device=self.device)
         if isinstance(self.criterion_, torch.nn.Module):
             self.criterion_.train(training)
 
-        # return L2_task(y, y_pred[0]) + \
-        #         self.module_.lambda_r * torch.mean(torch.pow(torch.cat((y_pred[1],y_pred[2]),dim=2), 2)) +\
-        #         self.module_.lambda_w * L2_weight(self) +\
-        #         self.module_.lambda_o * L2_ortho(self)
         return self.criterion_(y, self.module_.output_layer(y_pred[0])[:, self.module_.mask, :]) + \
                self.module_.lambda_r * torch.mean(torch.pow(y_pred[0], 2)) + \
-               self.module_.lambda_w * L2_weight(self) + \
                self.module_.lambda_o * L2_ortho(self)
 
     def train_step(self, Xi, yi, **fit_params):
@@ -134,57 +113,35 @@ class RNNNet(NeuralNetRegressor):
             return step['loss']
 
         self.optimizer_.step(step_fn)
+
+        # Enforce Dale's Law after optimizer step
         if self.module_.dale:
             self.module_.recurrent_layer.weight.data = torch.relu(
                 self.module_.recurrent_layer.weight.data * self.module_.dale_mask) * self.module_.dale_mask
 
-        #self.module_.recurrent_layer.weight.data = torch.relu(self.module_.recurrent_layer.weight.data * self.module_.recurrent_mask) * self.module_.recurrent_mask
+        # Enforce positive entries for input and output layers after optimizer step
         self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(self.module_.input_layer.weight.data)
         self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
 
 
         return step_accumulator.get_step()
 
-# Task performance
-def L2_task(net, X, y):
-    x = to_tensor(net.predict(X), device=device)
-    z = net.module_.output_layer(x)[:, net.module_.mask, :]
-    y = to_tensor(y, device=device)
 
-    return net.criterion_(z, y)
-def r2_scorer(net, X, y):
+# Define some epoch scorers for monitoring progress during training.
+def R2_task(net, X, y):
     y_true = to_tensor(y,device=device)
     x = to_tensor(net.predict(X), device=device)
     z = net.module_.output_layer(x)[:, net.module_.mask, :]
     var_y = torch.var(y_true, unbiased=False)
     return 1-F.mse_loss(y_true, z,reduction='mean') / var_y
 
-#r2 = EpochScoring(scoring=make_scorer(r2_scorer), on_train=False)
 
-# Regularizers
 def L2_rate(net, X, y):
     x = to_tensor(net.predict(X), device=device)
     return torch.mean(torch.pow(x, 2))
 
 
-def L2_weight(net,X = None, y = None):
-    return torch.mean(torch.pow(net.module_.recurrent_layer.weight, 2))
-
-
 def L2_ortho(net,X = None, y = None):
     b = torch.cat((net.module_.input_layer.weight, net.module_.output_layer.weight.t()), dim=1)
-    #b = net.module_.input_layer.weight
     b = b / torch.norm(b, dim=0)
     return torch.norm(b.t() @ b - torch.diag(torch.diag(b.t() @ b)), p=2)
-
-
-
-
-# Stopping criteria
-def stopping(net,X, y):
-    return np.sum(np.abs(np.asarray(net.history[:,'L2_task']) - net.baseline))
-
-
-
-
-
