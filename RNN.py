@@ -28,7 +28,7 @@ else:
 
 
 class RNNModule(torch.nn.Module):
-    def __init__(self, connectivity, mask, n, embedding=False, radius=1.5,lambda_r=0, lambda_o=0, lambda_i=0, lambda_w=0, tau=200, sigma_rec=.15):
+    def __init__(self, connectivity, mask, n, activation='relu', embedding=False, radius=1.5,lambda_r=0, lambda_o=0, lambda_i=0, lambda_w=0, tau=200, sigma_rec=.15):
         super(RNNModule, self).__init__()
         self.alpha = .2
         self.tau = tau
@@ -43,6 +43,12 @@ class RNNModule(torch.nn.Module):
         self.lambda_r = lambda_r
         self.lambda_o = lambda_o
         self.lambda_w = lambda_w
+
+        if activation=='relu':
+            self.activation=torch.nn.ReLU(inplace=False)
+
+        if activation=='leakyrelu':
+            self.activation = torch.nn.LeakyReLU(negative_slope=.1, inplace=False)
 
         if embedding:
             self.A = torch.rand(self.N, self.N, device=device)
@@ -94,10 +100,10 @@ class RNNModule(torch.nn.Module):
 
         for i in range(t - 1):
             state_new = (1 - self.alpha) * states[:, i, :] + self.alpha * (
-                torch.relu(self.recurrent_layer(states[:, i, :]) + self.input_layer(u[:, i, :]) + noise[:, i, :]))
+                self.activation(self.recurrent_layer(states[:, i, :]) + self.input_layer(u[:, i, :]) + noise[:, i, :]))
             states = torch.cat((states, state_new.unsqueeze_(1)), 1)
 
-        return self.output_layer(states)[:, self.mask, :], self.output_layer(states),  states
+        return states,self.output_layer(states)[:, self.mask, :], self.output_layer(states)
 
 
 class RNNNet(NeuralNetRegressor):
@@ -109,10 +115,14 @@ class RNNNet(NeuralNetRegressor):
         if isinstance(self.criterion_, torch.nn.Module):
             self.criterion_.train(training)
 
-        return L2_task(y, y_pred[0]) + \
-                self.module_.lambda_r * L2_rate(y, y_pred[2]) +\
-                self.module_.lambda_w * L2_weight(self) +\
-                self.module_.lambda_o * L2_ortho(self)
+        # return L2_task(y, y_pred[0]) + \
+        #         self.module_.lambda_r * torch.mean(torch.pow(torch.cat((y_pred[1],y_pred[2]),dim=2), 2)) +\
+        #         self.module_.lambda_w * L2_weight(self) +\
+        #         self.module_.lambda_o * L2_ortho(self)
+        return self.criterion_(y, self.module_.output_layer(y_pred[0])[:, self.module_.mask, :]) + \
+               self.module_.lambda_r * torch.mean(torch.pow(y_pred[0], 2)) + \
+               self.module_.lambda_w * L2_weight(self) + \
+               self.module_.lambda_o * L2_ortho(self)
 
     def train_step(self, Xi, yi, **fit_params):
         step_accumulator = self.get_train_step_accumulator()
@@ -136,23 +146,25 @@ class RNNNet(NeuralNetRegressor):
         return step_accumulator.get_step()
 
 # Task performance
-def L2_task(y, y_pred):
-    y_pred = to_tensor(y_pred, device=device)
+def L2_task(net, X, y):
+    x = to_tensor(net.predict(X), device=device)
+    z = net.module_.output_layer(x)[:, net.module_.mask, :]
     y = to_tensor(y, device=device)
-    criterion = torch.nn.MSELoss()
-    return criterion(y_pred, y)
 
-def r2_scorer(y_true, y_pred):
-    y_true = to_tensor(y_true,device=device)
-    y_pred = to_tensor(y_pred,device=device)
+    return net.criterion_(z, y)
+def r2_scorer(net, X, y):
+    y_true = to_tensor(y,device=device)
+    x = to_tensor(net.predict(X), device=device)
+    z = net.module_.output_layer(x)[:, net.module_.mask, :]
     var_y = torch.var(y_true, unbiased=False)
-    return 1-F.mse_loss(y_pred, y_true,reduction='mean') / var_y
-r2 = EpochScoring(scoring=make_scorer(r2_scorer), on_train=False)
+    return 1-F.mse_loss(y_true, z,reduction='mean') / var_y
+
+#r2 = EpochScoring(scoring=make_scorer(r2_scorer), on_train=False)
 
 # Regularizers
-def L2_rate(_, y_pred):
-    y_pred = to_tensor(y_pred, device=device)
-    return torch.mean(torch.pow(y_pred, 2))
+def L2_rate(net, X, y):
+    x = to_tensor(net.predict(X), device=device)
+    return torch.mean(torch.pow(x, 2))
 
 
 def L2_weight(net,X = None, y = None):

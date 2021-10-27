@@ -13,30 +13,28 @@ from skorch.callbacks import LRScheduler
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import itertools
 
-# if torch.cuda.is_available():
-#     device = 'cuda'
-# else:
-#     device = 'cpu'
-# print('Device: ' + device)
-device='cpu'
+if torch.cuda.is_available():
+    device = 'cuda'
+else:
+    device = 'cpu'
+print('Device: ' + device)
+
 # Get environmental variable 'task_id'
 task_id = int(os.environ['SGE_TASK_ID'])
-#task_id=0
-#for task_id in range(125):
-    # get lca_ids for non_orthogonal models
-lca_ids = (LCA() & (Model() & 'lambda_o=0').proj('model_id')).fetch('lca_id')
 
+# Get model ids
+model_id = ["inodsnQk"]
 
 # Set parameter grid
-lr = [.01]
-patience = [25]
-threshold = [.0001]
-batch_size = [128]
+lr = [.01,.001]
+patience = [50,100]
+threshold = [.0001,.00001]
+batch_size = [128,264]
 sigma_rec = [0.15]
 weight_decay=[0]
-param_grid = np.repeat(np.array([x for x in itertools.product(lca_ids,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=1, axis=0)
+param_grid = np.repeat(np.array([x for x in itertools.product(model_id,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=25, axis=0)
 
-parameters = {'lca_id': param_grid[task_id-1][0],
+parameters = {'model_id': param_grid[task_id-1][0],
                'sigma_rec': (param_grid[task_id-1][1]).astype(float),
               'lr': (param_grid[task_id-1][2]).astype(float),
               'patience': (param_grid[task_id-1][3]).astype(float),
@@ -46,8 +44,7 @@ parameters = {'lca_id': param_grid[task_id-1][0],
 
 
 # Load data for model
-model_id  = (LCA() & {'lca_id': parameters['lca_id']}).fetch1('model_id')
-
+model_id = parameters['model_id']
 print(model_id)
 N = (Model() & {'model_id': model_id}).fetch1('n')
 
@@ -88,11 +85,11 @@ rnn_net.module_.recurrent_layer.weight.data = torch.tensor((Model() & {'model_id
 rnn_net.module_.input_layer.weight.data = torch.tensor((Model() & {'model_id':model_id}).fetch1('w_in'),device=device)
 rnn_net.module_.output_layer.weight.data = torch.tensor((Model() & {'model_id':model_id}).fetch1('w_out'),device=device)
 
-x, _, z = rnn_net.forward(inputs.to(device=device),training=False)
+_, z, x = rnn_net.forward(inputs.to(device=device),training=False)
 q_true = torch.tensor((Model() & {'model_id': model_id}).fetch1('embedding')).float()
 x = x.detach().cpu() @ q_true
 z = z.detach().cpu()
-labels = torch.cat((x,z), dim=2).to(device=device)
+labels = torch.cat((x,z), dim=2)
 
 # Initialize latent nets
 recurrent_mask = torch.ones(8, 8).float().to(device=device)
@@ -109,11 +106,11 @@ latent_net = LatentNet(
     module__recurrent_mask=recurrent_mask.to(device=device),
     module__input_mask=input_mask.to(device=device),
     module__output_mask=output_mask.to(device=device),
-    constrained=False,
+    module__activation='relu',
     warm_start=False,
     lr=parameters['lr'],
     batch_size=int(parameters['batch_size']),
-    max_epochs=10000,
+    max_epochs=4000,
     optimizer=torch.optim.Adam,
     device=device,
     callbacks=[EpochScoring(r2_x, on_train=False),
@@ -123,16 +120,9 @@ latent_net = LatentNet(
                              threshold=parameters['threshold'],
                              lower_is_better=True)]
 )
-latent_net.initialize()
-latent_net.module_.recurrent_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('w_rec'))
-latent_net.module_.input_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('w_in'))
-latent_net.module_.output_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('w_out'))
-latent_net.module_.A.weight = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('a'))
-latent_net.module_.q = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('q'))
 print('Fitting...')
-
 # Fit LCA
-latent_net.partial_fit(inputs, labels)
+latent_net.fit(inputs, labels)
 
 # Compute w_error and q_error:
 # w_rec = (Model() & {'model_id': model_id}).fetch1('w_rec')
@@ -142,11 +132,11 @@ latent_net.partial_fit(inputs, labels)
 
 # Populate LCA table
 results = {'model_id': model_id,
-           'lca_id': parameters['lca_id'],
-            'lca2_id': ''.join(rdm.choices(string.ascii_letters + string.digits, k=8)),
+           'lca_id': ''.join(rdm.choices(string.ascii_letters + string.digits, k=8)),
            **parameters,
            'alpha': latent_net.module_.alpha.cpu().numpy(),
            'sigma_rec': latent_net.module_.sigma_rec.cpu().numpy(),
+           'activation': latent_net.module_.activation,
            'weight_decay': parameters['weight_decay'],
            'n_trials': n_trials,
            'batch_size': latent_net.batch_size,
@@ -166,5 +156,5 @@ results = {'model_id': model_id,
            'a': latent_net.module_.A.detach().cpu().numpy()}
             #'w_error': w_error,
             #'q_error': q_error}
-LCA_unconstrained.insert1(results)
+LCAGrid.insert1(results)
 

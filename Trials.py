@@ -87,8 +87,7 @@ def generate_input_target_stream(context, motion_coh, color_coh, baseline, alpha
     return input_stream, target_stream
 
 
-def generate_trials( n_trials, alpha, tau, sigma_in, baseline, n_coh, n_t, cue_on, cue_off,
-                                 stim_on,stim_off, dec_on, dec_off):
+def generate_trials( n_trials, alpha, tau, sigma_in, baseline, n_coh, n_t = 75):
     """
     Create a set of trials consisting of inputs, targets and trial conditions.
 
@@ -104,6 +103,16 @@ def generate_trials( n_trials, alpha, tau, sigma_in, baseline, n_coh, n_t, cue_o
     :return: mask
     :return: conditions: array of dict
     """
+    
+    
+
+    cue_on= int(round(n_t * .1))
+    cue_off= int(round(n_t * .33))
+    stim_on= int(round(n_t * .4))
+    stim_off= int(round(n_t))
+    dec_on= int(round(n_t * .75))
+    dec_off= int(round(n_t))
+
 
     inputs = []
     targets = []

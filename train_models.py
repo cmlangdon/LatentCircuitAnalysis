@@ -20,18 +20,21 @@ else:
 # Get environmental variable 'task_id'
 task_id = int(os.environ['SGE_TASK_ID'])
 #task_id=0
-lr = [.001]
-lambda_r = [.05]
-patience = [50, 100]
+lr = [.01]
+#lambda_r = [0, .01, .1, 1]
+lambda_r = [0.01]
+lambda_o = [1]
+patience = [25]
 threshold = [.0001]
 batch_size = [180]
-param_grid = np.repeat(np.array([x for x in itertools.product( lambda_r, lr, patience, threshold, batch_size)]),repeats=10, axis=0)
+param_grid = np.repeat(np.array([x for x in itertools.product( lambda_r, lr, patience, threshold, batch_size,lambda_o)]),repeats=25, axis=0)
 
 parameters = {'lambda_r': param_grid[task_id-1][0],
               'lr': param_grid[task_id-1][1],
               'patience': param_grid[task_id-1][2],
               'threshold': param_grid[task_id-1][3],
-              'batch_size': param_grid[task_id-1][4] }
+              'batch_size': param_grid[task_id-1][4],
+              'lambda_o': param_grid[task_id-1][5]}
 
 # Define trial structure.
 t = 3000
@@ -56,13 +59,14 @@ inputs, labels, mask, conditions = generate_trials(**trial_events,
 
 rnn_net = RNNNet(
     module=RNNModule,
-    module__n=150,
+    module__n=100,
     module__connectivity='large',
     module__embedding=False,
     module__radius=1.5,
     module__lambda_r=parameters['lambda_r'],
-    module__lambda_o=0,
+    module__lambda_o=parameters['lambda_o'],
     module__lambda_w=0,
+    module__activation='relu',
     warm_start=False,
     lr=parameters['lr'],
     baseline=.01,
@@ -70,15 +74,14 @@ rnn_net = RNNNet(
     module__mask = mask,
     optimizer=torch.optim.Adam,
     device=device,
-    callbacks=[r2,
-               EpochScoring(make_scorer(L2_rate), on_train=False),
+    callbacks=[EpochScoring(r2_scorer, on_train=False),
+                EpochScoring(L2_rate, on_train=False),
                EpochScoring(L2_weight, on_train=False),
                EpochScoring(L2_ortho, on_train=False),
-               EpochScoring(make_scorer(L2_task), on_train=False),
+               EpochScoring(L2_task, on_train=False),
                EarlyStopping(monitor="r2_scorer",
                              patience=parameters['patience'],
                              threshold=parameters['threshold'],
-                             threshold_mode='abs',
                              lower_is_better=False)])
 
 
@@ -90,6 +93,7 @@ rnn_net.fit(inputs.to(device=device), labels.to(device=device))
 results = {'model_id': ''.join(rdm.choices(string.ascii_letters + string.digits, k=8)),
            'connectivity': rnn_net.module_.connectivity,
            'n': rnn_net.module_.n,
+           'activation':rnn_net.module_.activation,
            'lr': rnn_net.lr,
            'batch_size': rnn_net.batch_size,
            'patience': parameters['patience'],
@@ -112,7 +116,7 @@ results = {'model_id': ''.join(rdm.choices(string.ascii_letters + string.digits,
            'train_loss_history': np.array(rnn_net.history[:,'train_loss']),
            'valid_loss_history': np.array(rnn_net.history[:,'valid_loss'])}
 
-if rnn_net.history[-1, 'r2_scorer'].detach().cpu().numpy()>.90:
-    Model().insert1(results)
+#if rnn_net.history[-1, 'r2_scorer'].detach().cpu().numpy()>.90:
+Model().insert1(results)
 
 

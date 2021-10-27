@@ -7,14 +7,11 @@ from skorch.utils import to_tensor
 from torch.nn import functional as F
 
 
-if torch.cuda.is_available():
-    device = 'cuda'
-else:
-    device = 'cpu'
+
 
 
 class LatentModule(torch.nn.Module):
-    def __init__(self, recurrent_mask, input_mask,output_mask, n, N, alpha, sigma_rec, weight_decay):
+    def __init__(self, recurrent_mask, input_mask,output_mask, n, N, alpha, sigma_rec, weight_decay,activation='relu'):
         super(LatentModule, self).__init__()
 
         self.recurrent_mask = recurrent_mask
@@ -27,6 +24,12 @@ class LatentModule(torch.nn.Module):
         self.weight_decay = weight_decay
         self.input_size = 6
         self.recurrent_layer = torch.nn.Linear(self.n, self.n, bias=False)
+        self.recurrent_layer.weight.data =torch.zeros(self.n, self.n).float().to(device=device)
+
+        if activation=='relu':
+            self.activation=torch.nn.ReLU(inplace=False)
+        if activation=='leakyrelu':
+            self.activation = torch.nn.LeakyReLU(negative_slope=0.01, inplace=False)
 
         self.input_layer = torch.nn.Linear(6, self.n, bias=False)
         self.input_layer.weight.data = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0).float().to(device=device)
@@ -52,7 +55,7 @@ class LatentModule(torch.nn.Module):
 
         for i in range(t - 1):
             state_new = (1 - self.alpha) * states[:, i, :] + self.alpha * (
-                torch.relu(self.recurrent_layer(states[:, i, :]) + self.input_layer(u[:, i, :]) + noise[:, i, :]))
+                self.activation(self.recurrent_layer(states[:, i, :]) + self.input_layer(u[:, i, :]) + noise[:, i, :]))
             states = torch.cat((states, state_new.unsqueeze_(1)), 1)
 
 
@@ -97,6 +100,23 @@ def r2_xqt(net, X, y):
     return net.criterion_(xqt, xbar) / var_xqt
 
 
+def r2_z(net, X, y):
+    xbar = to_tensor(net.predict(X), device=device)
+    zbar = to_tensor(net.module_.output_layer(xbar), device=device)
+    y = to_tensor(y, device=device)
+    z = y[:, :, -2:]
+    return net.criterion_(z, zbar) / torch.var(z, unbiased=False)
+
+
+def rsquared(net, X, y):
+    xbar = to_tensor(net.predict(X), device=device)
+    zbar = to_tensor(net.module_.output_layer(xbar), device=device)
+    x = torch.cat((xbar@ net.module_.q.detach(),zbar),dim=2)
+    y = to_tensor(y, device=device)
+
+    return net.criterion_(y, x) / torch.var(y, unbiased=False)
+
+
 def L2_weight(net,X = None, y = None):
     return torch.mean(torch.pow(net.module_.recurrent_layer.weight, 2))
 
@@ -117,18 +137,22 @@ class LatentNet(NeuralNetRegressor):
         xbar = y_pred[0]
         zbar = y_pred[1]
 
-        x = y_true[:, :, :-2]
-        z = y_true[:, :, -2:]
-        #xqtq = x @ self.module_.q.t() @ self.module_.q
-        #xqt = x @ self.module_.q.t()
+        # x = y_true[:, :, :-2]
+        # z = y_true[:, :, -2:]
+        # xqtq = x @ self.module_.q.t() @ self.module_.q
+        # xqt = x @ self.module_.q.t()
+        #
+        # var_x = torch.var(x, unbiased=False)
+        # var_xqt = torch.var(xqt, unbiased=False)
+        # var_z = torch.var(z, unbiased=False)
 
-        var_x = torch.var(x, unbiased=False)
-        #var_xqt = torch.var(xqt, unbiased=False)
-        var_z = torch.var(z, unbiased=False)
+        # return self.criterion_(x, xqtq) / var_x + \
+        #        self.criterion_(xqt, xbar) / var_xqt + \
+        #        self.criterion_(z, zbar) / var_z
 
-        return self.criterion_(x, xbar @ self.module_.q) / var_x +\
-               self.criterion_(z, zbar) / var_z + \
-               self.module_.weight_decay * torch.mean(torch.pow(self.module_.recurrent_layer.weight, 2))
+        x = torch.cat((xbar @ self.module_.q, zbar), dim=2)
+
+        return self.criterion_(y_true, x) / torch.var(y_true, unbiased=False)
 
 
     def train_step(self, Xi, yi, **fit_params):

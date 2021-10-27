@@ -1,7 +1,8 @@
 #!/usr/bin/bash
-#$ -t 1-200
-#$ -N lca
+#$ -t 1-400
+#$ -N lca_grid
 #$-cwd
 #$ -l gpu=1
 #$ -l m_mem_free=20G
-python -u lca_script.py
+python lca_grid.py
+
