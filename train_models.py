@@ -26,7 +26,7 @@ lambda_r = [0.01]
 lambda_o = [1]
 patience = [25]
 threshold = [.0001]
-batch_size = [128]
+batch_size = [256]
 
 # Create grid of hyperparameters with n_repeats per combination of hyperparameters
 n_repeats = 25
