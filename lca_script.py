@@ -22,13 +22,13 @@ print('Device: ' + device)
 # Get environmental variable 'task_id'
 task_id = int(os.environ['SGE_TASK_ID'])
 #task_id = 0
-model_ids = (Model_paper()).fetch('model_id')
+model_ids = (Model_paper()).fetch('model_id')[0]
 
 # Define hyperparameter grid
 lr = [.02]
-patience = [50]
+patience = [100]
 threshold = [.0001]
-batch_size = [256]
+batch_size = [128]
 sigma_rec = [0.15]
 weight_decay=[0]
 n_repeats = 5
