@@ -17,7 +17,6 @@ class LatentModule(torch.nn.Module):
     def __init__(self,  input_mask,output_mask, n, N, alpha, sigma_rec, weight_decay):
         super(LatentModule, self).__init__()
 
-
         self.input_mask = input_mask
         self.output_mask = output_mask
         self.N = N

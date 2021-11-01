@@ -21,7 +21,7 @@ print('Device: ' + device)
 
 # Get environmental variable 'task_id'
 task_id = int(os.environ['SGE_TASK_ID'])
-
+#task_id = 0
 model_ids = (Model_paper()).fetch('model_id')
 
 # Define hyperparameter grid
