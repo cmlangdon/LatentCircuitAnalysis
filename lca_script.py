@@ -20,15 +20,15 @@ else:
 print('Device: ' + device)
 
 # Get environmental variable 'task_id'
-task_id = int(os.environ['SGE_TASK_ID'])
-#task_id = 0
-model_ids = np.array([(Model_paper()).fetch('model_id')[0]])
+#task_id = int(os.environ['SGE_TASK_ID'])
+task_id =0
+model_ids = (Model_paper()).fetch('model_id')
 
 # Define hyperparameter grid
-lr = [.02]
-patience = [100]
-threshold = [.0001]
-batch_size = [128]
+lr = [.01]
+patience = [400]
+threshold = [.00001]
+batch_size = [16]
 sigma_rec = [0.15]
 weight_decay=[0]
 n_repeats = 5
@@ -51,28 +51,41 @@ inputs, labels, mask, conditions  = generate_trials(
                                             tau=200,
                                             sigma_in=.01,
                                             baseline=0.2,
-                                            n_coh=4)
+                                            n_coh=6)
 
 # Reconstruct model from model_id
-model_id = parameters['model_id']
-N = (Model_paper() & {'model_id':model_id}).fetch1('n')
-rnn_net = RNNNet(
-    module=RNNModule,
-    module__n=N,
-    module__connectivity='large',
-    module__mask = mask,
-    device=device,
-)
-rnn_net.initialize()
-rnn_net.module_.recurrent_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_rec'), device= device)
-rnn_net.module_.input_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_in'),device=device)
-rnn_net.module_.output_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_out'),device=device)
+def simulate_model(model_id):
+    N = (Model_paper() & {'model_id':model_id}).fetch1('n')
+    rnn_net = RNNNet(
+        module=RNNModule,
+        module__n=N,
+        module__connectivity='large',
+        module__mask = mask,
+        device=device,
+    )
+    rnn_net.initialize()
+    rnn_net.module_.recurrent_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_rec'), device= device)
+    rnn_net.module_.input_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_in'),device=device)
+    rnn_net.module_.output_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_out'),device=device)
 
-# Simulate model
-x,_,z = rnn_net.forward(inputs.to(device=device),training=False)
-x = x.detach().cpu()
-z = z.detach().cpu()
-labels = torch.cat((x,z), dim=2)
+    # Get average trajectories for model
+    x,_,z = rnn_net.forward(inputs.to(device=device),training=False)
+    x = x.detach().cpu()
+    z = z.detach().cpu()
+    labels = torch.cat((x,z), dim=2)
+    df = pd.DataFrame(data=conditions)
+    df['labels']=list(labels.numpy())
+    df['inputs']=list(inputs.numpy())
+    return df,N
+
+
+def group_mean(x):
+    return np.mean(np.stack(x),axis=0)
+
+df, N = simulate_model(parameters['model_id'])
+
+mean_labels = torch.tensor(np.stack(df.groupby(['context','motion_coh','color_coh'])['labels'].apply(lambda x: group_mean(x)).reset_index()['labels'].values))
+mean_inputs = torch.tensor(np.stack(df.groupby(['context','motion_coh','color_coh'])['inputs'].apply(lambda x: group_mean(x)).reset_index()['inputs'].values))
 
 # Initialize latent nets
 input_mask = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0)
@@ -92,20 +105,18 @@ latent_net = LatentNet(
     max_epochs=10000,
     optimizer=torch.optim.Adam,
     device=device,
-    callbacks=[EpochScoring(r2_x, on_train=False),
-               EpochScoring(r2_xqt, on_train=False),
-                EpochScoring(r2_z, on_train=False),
-                EpochScoring(rsquared, on_train=False),
-               EarlyStopping(monitor="valid_loss",
+    callbacks=[EpochScoring(r2_x, on_train=True),
+               EpochScoring(r2_xqt, on_train=True),
+                EpochScoring(r2_z, on_train=True),
+                EpochScoring(rsquared, on_train=True),
+               EarlyStopping(monitor="train_loss",
                              patience=parameters['patience'],
                              threshold=parameters['threshold'],
                              lower_is_better=True)]
 )
 print('Fitting...')
-# Fit LCA
-latent_net.fit(inputs, labels)
 
-
+latent_net.fit(mean_inputs.to(device=device), mean_labels.to(device=device))
 
 # Populate LCA table
 results = {'model_id': parameters['model_id'],

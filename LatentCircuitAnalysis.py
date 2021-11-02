@@ -28,7 +28,7 @@ class LatentModule(torch.nn.Module):
         self.recurrent_layer = torch.nn.Linear(self.n, self.n, bias=False)
         self.recurrent_layer.weight.data =torch.zeros(self.n, self.n).float().to(device=device)
 
-        self.activation=torch.nn.ReLU()
+        self.activation=torch.nn.ReLU(inplace=False)
 
         self.input_layer = torch.nn.Linear(6, self.n, bias=False)
         self.input_layer.weight.data = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0).float().to(device=device)

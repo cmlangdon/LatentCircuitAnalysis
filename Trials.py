@@ -104,8 +104,8 @@ def generate_trials( n_trials, alpha, tau, sigma_in, baseline, n_coh, n_t = 150)
     :return: conditions: array of dict
     """
 
-    cohs = np.hstack((-10 ** np.linspace(0, -2, n_coh), 10 ** np.linspace(-2, 0, n_coh)))
-
+    #cohs = np.hstack((-10 ** np.linspace(0, -2, n_coh), 10 ** np.linspace(-2, 0, n_coh)))
+    cohs = np.linspace(-.2,.2,n_coh)
     cue_on= int(round(n_t * .1))
     cue_off= int(round(n_t * .33))
     stim_on= int(round(n_t * .4))

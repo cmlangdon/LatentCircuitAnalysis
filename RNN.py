@@ -123,7 +123,6 @@ class RNNNet(NeuralNetRegressor):
         self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(self.module_.input_layer.weight.data)
         self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
 
-
         return step_accumulator.get_step()
 
 

@@ -18,13 +18,13 @@ else:
     device = 'cpu'
 
 # Get environmental variable 'task_id'
-task_id = int(os.environ['SGE_TASK_ID'])
-
+#task_id = int(os.environ['SGE_TASK_ID'])
+task_id = 0
 # Define grid of hyperparameters
 lr = [.01]
 lambda_r = [0.01]
 lambda_o = [1]
-patience = [50]
+patience = [25]
 threshold = [.0001]
 batch_size = [256]
 
@@ -48,7 +48,7 @@ inputs, labels, mask, conditions  = generate_trials(
                                             tau=200,
                                             sigma_in=.01,
                                             baseline=0.2,
-                                            n_coh=4)
+                                            n_coh=6)
 # Initialize RNN
 rnn_net = RNNNet(
     module=RNNModule,
