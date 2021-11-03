@@ -18,18 +18,18 @@ else:
     device = 'cpu'
 
 # Get environmental variable 'task_id'
-#task_id = int(os.environ['SGE_TASK_ID'])
-task_id = 0
+task_id = int(os.environ['SGE_TASK_ID'])
+
 # Define grid of hyperparameters
-lr = [.01]
+lr = [.02]
 lambda_r = [0.01]
 lambda_o = [1]
-patience = [25]
+patience = [50]
 threshold = [.0001]
-batch_size = [256]
+batch_size = [128]
 
 # Create grid of hyperparameters with n_repeats per combination of hyperparameters
-n_repeats = 25
+n_repeats = 5
 param_grid = np.repeat(np.array([x for x in itertools.product( lambda_r, lr, patience, threshold, batch_size,lambda_o)]),repeats=n_repeats, axis=0)
 
 
