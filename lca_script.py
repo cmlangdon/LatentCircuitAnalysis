@@ -20,18 +20,18 @@ else:
 print('Device: ' + device)
 
 # Get environmental variable 'task_id'
-#task_id = int(os.environ['SGE_TASK_ID'])
-task_id =0
+task_id = int(os.environ['SGE_TASK_ID'])
+
 model_ids = (Model_paper()).fetch('model_id')
 
 # Define hyperparameter grid
-lr = [.01]
+lr = [.02]
 patience = [400]
 threshold = [.00001]
 batch_size = [16]
 sigma_rec = [0.15]
 weight_decay=[0]
-n_repeats = 5
+n_repeats = 25
 param_grid = np.repeat(np.array([x for x in itertools.product(model_ids,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=n_repeats, axis=0)
 
 # Select hyperparameters for this task

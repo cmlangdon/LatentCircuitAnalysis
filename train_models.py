@@ -21,7 +21,7 @@ else:
 task_id = int(os.environ['SGE_TASK_ID'])
 
 # Define grid of hyperparameters
-lr = [.02]
+lr = [.01]
 lambda_r = [0.01]
 lambda_o = [1]
 patience = [50]

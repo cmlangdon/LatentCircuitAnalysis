@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#$ -t 1-5
+#$ -t 1-25
 #$ -N lca
 #$-cwd
 #$ -l gpu=1
