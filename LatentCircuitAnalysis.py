@@ -162,7 +162,7 @@ class LatentNet(NeuralNetRegressor):
         if self.constrained:
             self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(
                 self.module_.input_layer.weight.data)
-            #self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
+            self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
             self.module_.output_layer.weight.data = torch.relu(
                 self.module_.output_layer.weight.data)
         else:

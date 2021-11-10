@@ -20,11 +20,11 @@ import itertools
 # print('Device: ' + device)
 device='cpu'
 # Get environmental variable 'task_id'
-task_id = int(os.environ['SGE_TASK_ID'])
-#task_id=0
+#task_id = int(os.environ['SGE_TASK_ID'])
+task_id=1
 #for task_id in range(125):
     # get lca_ids for non_orthogonal models
-lca_ids = (LCA() & (Model() & 'lambda_o=0').proj('model_id')).fetch('lca_id')
+lca_ids = (LCA_paper() & (Model_paper() ).proj('model_id')).fetch('lca_id')
 
 
 # Set parameter grid
@@ -46,57 +46,41 @@ parameters = {'lca_id': param_grid[task_id-1][0],
 
 
 # Load data for model
-model_id  = (LCA() & {'lca_id': parameters['lca_id']}).fetch1('model_id')
+model_id  = (LCA_paper() & {'lca_id': parameters['lca_id']}).fetch1('model_id')
 
-print(model_id)
-N = (Model() & {'model_id': model_id}).fetch1('n')
+N = (Model_paper() & {'model_id': model_id}).fetch1('n')
 
-t = 3000
-dt = .2 * 200
-n_t = int(round(t / dt))
-trial_events = {'n_t': int(round(n_t)),
-                'cue_on': int(round(n_t * .1)),
-                'cue_off': int(round(n_t * .33)),
-                'stim_on': int(round(n_t * .4)),
-                'stim_off': int(round(n_t)),
-                'dec_on': int(round(n_t * .75)),
-                'dec_off': int(round(n_t))}
+# Generate inputs and labels
+n_trials = 25
+inputs, labels, mask, conditions  = generate_trials(
+                                            n_trials=n_trials,
+                                            alpha=float(0.2),
+                                            tau=200,
+                                            sigma_in=.01,
+                                            baseline=0.2,
+                                            n_coh=6)
 
 
-# Load inputs and labels
-n_trials = 64
-inputs, _, mask, conditions = generate_trials(**trial_events,
-                                          n_trials=n_trials,
-                                          alpha=0.2,
-                                          tau=200,
-                                          sigma_in=.01,
-                                          baseline=0.2,
-                                          n_coh=6)
-
-n = (Model() & {'model_id':model_id}).fetch1('n')
 rnn_net = RNNNet(
     module=RNNModule,
-    module__n=n,
+    module__n=N,
     module__connectivity='large',
-    baseline=.015,
     module__mask = mask,
     device=device,
 )
 rnn_net.initialize()
 
-rnn_net.module_.recurrent_layer.weight.data = torch.tensor((Model() & {'model_id':model_id}).fetch1('w_rec'), device= device)
-rnn_net.module_.input_layer.weight.data = torch.tensor((Model() & {'model_id':model_id}).fetch1('w_in'),device=device)
-rnn_net.module_.output_layer.weight.data = torch.tensor((Model() & {'model_id':model_id}).fetch1('w_out'),device=device)
+rnn_net.module_.recurrent_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_rec'), device= device)
+rnn_net.module_.input_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_in'),device=device)
+rnn_net.module_.output_layer.weight.data = torch.tensor((Model_paper() & {'model_id':model_id}).fetch1('w_out'),device=device)
 
 x, _, z = rnn_net.forward(inputs.to(device=device),training=False)
-q_true = torch.tensor((Model() & {'model_id': model_id}).fetch1('embedding')).float()
-x = x.detach().cpu() @ q_true
+x = x.detach().cpu()
 z = z.detach().cpu()
 labels = torch.cat((x,z), dim=2).to(device=device)
 
 # Initialize latent nets
-recurrent_mask = torch.ones(8, 8).float().to(device=device)
-recurrent_mask = recurrent_mask - torch.diag(torch.diag(recurrent_mask))
+
 input_mask = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0)
 output_mask = torch.cat((torch.zeros(2,6),torch.eye(2)),dim=1)
 latent_net = LatentNet(
@@ -106,7 +90,6 @@ latent_net = LatentNet(
     module__alpha = 0.2,
     module__sigma_rec = parameters['sigma_rec'],
     module__weight_decay=parameters['weight_decay'],
-    module__recurrent_mask=recurrent_mask.to(device=device),
     module__input_mask=input_mask.to(device=device),
     module__output_mask=output_mask.to(device=device),
     constrained=False,
@@ -118,27 +101,25 @@ latent_net = LatentNet(
     device=device,
     callbacks=[EpochScoring(r2_x, on_train=False),
                EpochScoring(r2_xqt, on_train=False),
-               EarlyStopping(monitor="valid_loss",
+               EpochScoring(r2_z, on_train=False),
+               EpochScoring(rsquared, on_train=False),
+               EarlyStopping(monitor="train_loss",
                              patience=parameters['patience'],
                              threshold=parameters['threshold'],
                              lower_is_better=True)]
 )
 latent_net.initialize()
-latent_net.module_.recurrent_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('w_rec'))
-latent_net.module_.input_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('w_in'))
-latent_net.module_.output_layer.weight.data = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('w_out'))
-latent_net.module_.A.weight = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('a'))
-latent_net.module_.q = torch.from_numpy((LCA() & {'lca_id': parameters['lca_id']}).fetch1('q'))
+latent_net.module_.recurrent_layer.weight.data = torch.from_numpy((LCA_paper() & {'lca_id': parameters['lca_id']}).fetch1('w_rec'))
+latent_net.module_.input_layer.weight.data = torch.from_numpy((LCA_paper() & {'lca_id': parameters['lca_id']}).fetch1('w_in'))
+latent_net.module_.output_layer.weight.data = torch.from_numpy((LCA_paper() & {'lca_id': parameters['lca_id']}).fetch1('w_out'))
+latent_net.module_.A.weight = torch.from_numpy((LCA_paper() & {'lca_id': parameters['lca_id']}).fetch1('a'))
+latent_net.module_.q = torch.from_numpy((LCA_paper() & {'lca_id': parameters['lca_id']}).fetch1('q'))
 print('Fitting...')
 
 # Fit LCA
 latent_net.partial_fit(inputs, labels)
 
-# Compute w_error and q_error:
-# w_rec = (Model() & {'model_id': model_id}).fetch1('w_rec')
-# w_rec_true = latent_net.module_.recurrent_layer.weight.data.detach().cpu().numpy()
-# w_error = np.linalg.norm(w_rec-w_rec_true) / np.linalg.norm(w_rec)
-# q_error = np.linalg.norm(latent_net.module_.q.detach().cpu().numpy() - q_true.numpy()) / np.linalg.norm(q_true.numpy())
+
 
 # Populate LCA table
 results = {'model_id': model_id,
@@ -152,7 +133,7 @@ results = {'model_id': model_id,
            'batch_size': latent_net.batch_size,
            'r2_x':latent_net.history[-1, 'r2_x'].detach().cpu().numpy(),
            'r2_xqt':latent_net.history[-1, 'r2_xqt'].detach().cpu().numpy(),
-            'r2_z':latent_net.history[-1, 'valid_loss'] - latent_net.history[-1, 'r2_x'].detach().cpu().numpy()- latent_net.history[-1, 'r2_xqt'].detach().cpu().numpy(),
+            'r2_z':latent_net.history[-1, 'r2_z'].detach().cpu().numpy(),
            'valid_loss': latent_net.history[-1, 'valid_loss'],
             'train_loss': latent_net.history[-1, 'train_loss'],
            'valid_loss_history': np.array(latent_net.history[:, 'valid_loss']),
@@ -166,5 +147,5 @@ results = {'model_id': model_id,
            'a': latent_net.module_.A.detach().cpu().numpy()}
             #'w_error': w_error,
             #'q_error': q_error}
-LCA_unconstrained.insert1(results)
+LCA_unconstrained_paper.insert1(results)
 

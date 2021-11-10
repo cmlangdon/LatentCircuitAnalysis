@@ -113,41 +113,6 @@ class LCAGrid(dj.Manual):
     q_error=NULL: float
     """
 
-#Changed loss function to MSE(x,xbar@q)/varx + MSE(z,zbar)/varz
-@schema
-class LCA_unconstrained(dj.Manual):
-    definition = """
-    -> LCA
-    lca2_id: char(8)                   
-    ---
-    alpha: Decimal(3,2)
-    sigma_rec: Decimal(3,2)
-    lr: Decimal(8,7)
-    weight_decay: Decimal(6,5)
-    patience: int
-    threshold: Decimal(8,7)
-    n_trials: int
-    batch_size: int
-    max_epochs: int
-    epochs: int
-    r2_x: Decimal(5,4)
-    r2_xqt: Decimal(5,4)
-    r2_z: Decimal(5,4)
-    valid_loss: Decimal(6,5)
-    train_loss: Decimal(6,5)
-    valid_loss_history: longblob
-    train_loss_history: longblob
-    w_rec: longblob
-    w_in: longblob
-    w_out: longblob
-    q: longblob
-    a: longblob
-    w_error=NULL: float
-    q_error=NULL: float
-    """
-
-
-
 
 # Tables for latent connectivity paper:
 @schema
@@ -195,6 +160,37 @@ class LCA_paper(dj.Manual):
     max_epochs: int
     epochs: int
     r2: Decimal(5,4)
+    r2_x: Decimal(5,4)
+    r2_xqt: Decimal(5,4)
+    r2_z: Decimal(5,4)
+    valid_loss: Decimal(6,5)
+    train_loss: Decimal(6,5)
+    valid_loss_history: longblob
+    train_loss_history: longblob
+    w_rec: longblob
+    w_in: longblob
+    w_out: longblob
+    q: longblob
+    a: longblob
+
+    """
+
+@schema
+class LCA_unconstrained_paper(dj.Manual):
+    definition = """
+    -> LCA_paper
+    lca2_id: char(8)                   
+    ---
+    alpha: Decimal(3,2)
+    sigma_rec: Decimal(3,2)
+    lr: Decimal(8,7)
+    weight_decay: Decimal(6,5)
+    patience: int
+    threshold: Decimal(8,7)
+    n_trials: int
+    batch_size: int
+    max_epochs: int
+    epochs: int
     r2_x: Decimal(5,4)
     r2_xqt: Decimal(5,4)
     r2_z: Decimal(5,4)

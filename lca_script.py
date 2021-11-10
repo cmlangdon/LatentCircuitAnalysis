@@ -30,7 +30,7 @@ patience = [50]
 threshold = [.0001]
 batch_size = [128]
 sigma_rec = [0.15]
-weight_decay=[0]
+weight_decay = [0.01]
 n_repeats = 25
 param_grid = np.repeat(np.array([x for x in itertools.product(model_ids,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=n_repeats, axis=0)
 
@@ -74,6 +74,7 @@ x,_,z = rnn_net.forward(inputs.to(device=device),training=False)
 x = x.detach().cpu()
 z = z.detach().cpu()
 labels = torch.cat((x,z), dim=2)
+
 #     df = pd.DataFrame(data=conditions)
 #     df['labels']=list(labels.numpy())
 #     df['inputs']=list(inputs.numpy())
