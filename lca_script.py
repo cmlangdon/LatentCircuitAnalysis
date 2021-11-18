@@ -25,12 +25,12 @@ task_id = int(os.environ['SGE_TASK_ID'])
 model_ids = ((Model_paper() & 'model_id="Huqd0mSF"')).fetch('model_id')
 
 # Define hyperparameter grid
-lr = [.02]
+lr = [.01]
 patience = [100]
 threshold = [.0001]
 batch_size = [128]
 sigma_rec = [0.15]
-weight_decay = [0.02]
+weight_decay = [0]
 n_repeats = 25
 param_grid = np.repeat(np.array([x for x in itertools.product(model_ids,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=n_repeats, axis=0)
 
