@@ -25,7 +25,7 @@ task_id = int(os.environ['SGE_TASK_ID'])
 model_ids = ((Model_paper() & 'model_id="Huqd0mSF"')).fetch('model_id')
 
 # Define hyperparameter grid
-lr = [.01]
+lr = [.002]
 patience = [100]
 threshold = [.0001]
 batch_size = [128]
@@ -104,7 +104,7 @@ latent_net = LatentNet(
     warm_start=False,
     lr=parameters['lr'],
     batch_size=int(parameters['batch_size']),
-    max_epochs=500,
+    max_epochs=2000,
     optimizer=torch.optim.Adam,
     device=device,
     callbacks=[EpochScoring(r2_x, on_train=False),
