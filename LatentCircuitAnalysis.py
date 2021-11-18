@@ -104,7 +104,7 @@ def r2_z(net, X, y):
     zbar = to_tensor(net.module_.output_layer(xbar), device=device)
     y = to_tensor(y, device=device)
     z = y[:, :, -2:]
-    return 1 -net.criterion_(z, zbar) / torch.var(z, unbiased=False)
+    return 1 -(net.criterion_(z, zbar) / torch.var(z, unbiased=False))
 
 
 def rsquared(net, X, y):
@@ -136,9 +136,13 @@ class LatentNet(NeuralNetRegressor):
         xbar = y_pred[0]
         zbar = y_pred[1]
 
-        x = torch.cat((xbar @ self.module_.q, zbar), dim=2)
+        #x = torch.cat((xbar @ self.module_.q, zbar), dim=2)
 
-        return self.criterion_(y_true, x) / torch.var(y_true, unbiased=False)
+        #return self.criterion_(y_true, x) / torch.var(y_true, unbiased=False)
+
+
+
+        return self.criterion_(y_true[:,:,:-2], xbar @ self.module_.q) / torch.var(y_true[:,:,:-2], unbiased=False) + self.criterion_(y_true[:,:,-2:], zbar) / torch.var(y_true[:,:,-2:], unbiased=False)
 
 
     def train_step(self, Xi, yi, **fit_params):
@@ -163,8 +167,7 @@ class LatentNet(NeuralNetRegressor):
             self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(
                 self.module_.input_layer.weight.data)
             self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
-            self.module_.output_layer.weight.data = torch.relu(
-                self.module_.output_layer.weight.data)
+
         else:
             self.module_.input_layer.weight.data = torch.relu(
                 self.module_.input_layer.weight.data)

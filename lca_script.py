@@ -10,7 +10,7 @@ import random as rdm
 from LatentCircuitAnalysis import *
 from RNN import *
 from skorch.callbacks import LRScheduler
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CyclicLR
 import itertools
 
 if torch.cuda.is_available():
@@ -20,17 +20,17 @@ else:
 print('Device: ' + device)
 
 # Get environmental variable 'task_id'
-#task_id = int(os.environ['SGE_TASK_ID'])
-task_id = 0
-model_ids = (Model_paper()).fetch('model_id')
+task_id = int(os.environ['SGE_TASK_ID'])
+#task_id = 0
+model_ids = ((Model_paper() & 'model_id="Huqd0mSF"')).fetch('model_id')
 
 # Define hyperparameter grid
 lr = [.02]
-patience = [50]
+patience = [100]
 threshold = [.0001]
 batch_size = [128]
 sigma_rec = [0.15]
-weight_decay = [0.01]
+weight_decay = [0.02]
 n_repeats = 25
 param_grid = np.repeat(np.array([x for x in itertools.product(model_ids,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=n_repeats, axis=0)
 
@@ -104,13 +104,22 @@ latent_net = LatentNet(
     warm_start=False,
     lr=parameters['lr'],
     batch_size=int(parameters['batch_size']),
-    max_epochs=10000,
+    max_epochs=500,
     optimizer=torch.optim.Adam,
     device=device,
     callbacks=[EpochScoring(r2_x, on_train=False),
                EpochScoring(r2_xqt, on_train=False),
                 EpochScoring(r2_z, on_train=False),
                 EpochScoring(rsquared, on_train=False),
+                # ('lr_scheduler',
+                #          LRScheduler(policy=CyclicLR,cycle_momentum=False,
+                #                      base_lr=0.001,
+                #                      max_lr=0.02)),
+                # ('lr_scheduler',
+                #          LRScheduler(policy=ReduceLROnPlateau,
+                #                      patience=100,
+                #                      threshold=.0001,
+                #                      factor = .1)),
                EarlyStopping(monitor="train_loss",
                              patience=parameters['patience'],
                              threshold=parameters['threshold'],

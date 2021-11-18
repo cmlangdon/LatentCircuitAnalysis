@@ -18,13 +18,13 @@ else:
     device = 'cpu'
 
 # Get environmental variable 'task_id'
-task_id = int(os.environ['SGE_TASK_ID'])
-
+#task_id = int(os.environ['SGE_TASK_ID'])
+task_id = 0
 # Define grid of hyperparameters
 lr = [.01]
 lambda_r = [0.01]
 lambda_o = [1]
-patience = [50]
+patience = [100]
 threshold = [.0001]
 batch_size = [128]
 
@@ -43,7 +43,7 @@ parameters = {'lambda_r': param_grid[task_id-1][0],
 
 # Generate inputs and labels for fitting RNN
 inputs, labels, mask, conditions  = generate_trials(
-                                            n_trials=25,
+                                            n_trials=10,
                                             alpha=float(0.2),
                                             tau=200,
                                             sigma_in=.01,
@@ -52,14 +52,14 @@ inputs, labels, mask, conditions  = generate_trials(
 # Initialize RNN
 rnn_net = RNNNet(
     module=RNNModule,
-    module__n=150,
+    module__n=100,
     module__connectivity='large',
     module__radius=1.5,
     module__lambda_r=parameters['lambda_r'],
     module__lambda_o=parameters['lambda_o'],
     warm_start=False,
     lr=parameters['lr'],
-    max_epochs=10000,
+    max_epochs=250,
     module__mask = mask,
     optimizer=torch.optim.Adam,
     device=device,
