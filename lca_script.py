@@ -26,7 +26,7 @@ model_ids = ((Model_paper() )).fetch('model_id')
 
 # Define hyperparameter grid
 lr = [.02]
-patience = [25]
+patience = [50]
 threshold = [.0001]
 batch_size = [128]
 sigma_rec = [0.15]
