@@ -123,6 +123,7 @@ class Model_paper(dj.Manual):
        ---
        connectivity: enum('small', 'large')   # specify connectivity structure
        n: int                                 # number of neurons
+       n_t: int                                 # number of     time steps
        lr: decimal(6,6)                       # learning rate
        batch_size: int
        patience: int

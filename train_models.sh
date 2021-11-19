@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#$ -t 1-5
+#$ -t 1-25
 #$ -N train
 #$-cwd
 #$ -l m_mem_free=20G

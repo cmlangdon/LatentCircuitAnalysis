@@ -18,18 +18,18 @@ else:
     device = 'cpu'
 
 # Get environmental variable 'task_id'
-#task_id = int(os.environ['SGE_TASK_ID'])
-task_id = 0
+task_id = int(os.environ['SGE_TASK_ID'])
+#task_id = 0
 # Define grid of hyperparameters
 lr = [.01]
-lambda_r = [0.01]
+lambda_r = [0.05]
 lambda_o = [1]
-patience = [100]
+patience = [25]
 threshold = [.0001]
 batch_size = [128]
 
 # Create grid of hyperparameters with n_repeats per combination of hyperparameters
-n_repeats = 5
+n_repeats = 25
 param_grid = np.repeat(np.array([x for x in itertools.product( lambda_r, lr, patience, threshold, batch_size,lambda_o)]),repeats=n_repeats, axis=0)
 
 
@@ -42,24 +42,26 @@ parameters = {'lambda_r': param_grid[task_id-1][0],
               'lambda_o': param_grid[task_id-1][5]}
 
 # Generate inputs and labels for fitting RNN
+n_t = 75
 inputs, labels, mask, conditions  = generate_trials(
-                                            n_trials=10,
+                                            n_trials=25,
                                             alpha=float(0.2),
                                             tau=200,
                                             sigma_in=.01,
                                             baseline=0.2,
-                                            n_coh=6)
+                                            n_coh=6,
+                                            n_t=n_t)
 # Initialize RNN
 rnn_net = RNNNet(
     module=RNNModule,
-    module__n=100,
+    module__n=150,
     module__connectivity='large',
     module__radius=1.5,
     module__lambda_r=parameters['lambda_r'],
     module__lambda_o=parameters['lambda_o'],
     warm_start=False,
     lr=parameters['lr'],
-    max_epochs=250,
+    max_epochs=1000,
     module__mask = mask,
     optimizer=torch.optim.Adam,
     device=device,
@@ -78,6 +80,7 @@ rnn_net.fit(inputs.to(device=device), labels.to(device=device))
 results = {'model_id': ''.join(rdm.choices(string.ascii_letters + string.digits, k=8)),
            'connectivity': rnn_net.module_.connectivity,
            'n': rnn_net.module_.n,
+           'n_t': n_t,
            'lr': rnn_net.lr,
            'batch_size': rnn_net.batch_size,
            'patience': parameters['patience'],
