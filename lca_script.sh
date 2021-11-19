@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-#$ -t 1-25
+#$ -t 1-250
 #$ -N lca
 #$-cwd
 #$ -l m_mem_free=20G

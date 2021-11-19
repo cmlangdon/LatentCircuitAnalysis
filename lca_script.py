@@ -22,16 +22,16 @@ print('Device: ' + device)
 # Get environmental variable 'task_id'
 task_id = int(os.environ['SGE_TASK_ID'])
 #task_id = 0
-model_ids = ((Model_paper() & 'model_id="Huqd0mSF"')).fetch('model_id')
+model_ids = ((Model_paper() )).fetch('model_id')
 
 # Define hyperparameter grid
-lr = [.002]
-patience = [100]
+lr = [.02]
+patience = [25]
 threshold = [.0001]
 batch_size = [128]
 sigma_rec = [0.15]
-weight_decay = [0]
-n_repeats = 25
+weight_decay = [0.02]
+n_repeats = 10
 param_grid = np.repeat(np.array([x for x in itertools.product(model_ids,sigma_rec, lr, patience, threshold, batch_size, weight_decay)]), repeats=n_repeats, axis=0)
 
 # Select hyperparameters for this task
@@ -45,13 +45,15 @@ parameters = {'model_id': param_grid[task_id-1][0],
 
 # Generate inputs and labels
 n_trials = 25
+n_t = (Model_paper() & {'model_id':parameters['model_id']}).fetch1('n_t')
 inputs, labels, mask, conditions  = generate_trials(
                                             n_trials=n_trials,
                                             alpha=float(0.2),
                                             tau=200,
                                             sigma_in=.01,
                                             baseline=0.2,
-                                            n_coh=6)
+                                            n_coh=6,
+                                            n_t = n_t)
 
 # Reconstruct model from model_id
 #def simulate_model(model_id):
