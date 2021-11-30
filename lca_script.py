@@ -20,12 +20,13 @@ else:
 print('Device: ' + device)
 
 # Get environmental variable 'task_id'
-task_id = int(os.environ['SGE_TASK_ID'])
-#task_id = 0
+#task_id = int(os.environ['SGE_TASK_ID'])
+task_id = 0
 model_ids = ((Model_paper() )).fetch('model_id')
 
 # Define hyperparameter grid
-lr = [.02]
+
+lr = [.01]
 patience = [50]
 threshold = [.0001]
 batch_size = [128]
@@ -92,11 +93,16 @@ labels = torch.cat((x,z), dim=2)
 # mean_inputs = torch.tensor(np.stack(df.groupby(['context','motion_coh','color_coh'])['inputs'].apply(lambda x: group_mean(x)).reset_index()['inputs'].values))
 
 # Initialize latent nets
-input_mask = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0)
-output_mask = torch.cat((torch.zeros(2,6),torch.eye(2)),dim=1)
+n=8
+input_mask = torch.zeros(n,6)
+input_mask[:6, :6] = torch.eye(6)
+
+output_mask = torch.zeros(2,n)
+output_mask[:, -2:] = torch.eye(2)
+
 latent_net = LatentNet(
     module=LatentModule,
-    module__n=8,
+    module__n=n,
     module__N=N,
     module__alpha = 0.2,
     module__sigma_rec = parameters['sigma_rec'],
@@ -106,7 +112,8 @@ latent_net = LatentNet(
     warm_start=False,
     lr=parameters['lr'],
     batch_size=int(parameters['batch_size']),
-    max_epochs=2000,
+    max_epochs=500,
+    constrained=True,
     optimizer=torch.optim.Adam,
     device=device,
     callbacks=[EpochScoring(r2_x, on_train=False),
@@ -135,6 +142,7 @@ latent_net.fit(inputs.to(device=device), labels.to(device=device))
 results = {'model_id': parameters['model_id'],
            'lca_id': ''.join(rdm.choices(string.ascii_letters + string.digits, k=8)),
            **parameters,
+           'n': latent_net.module_.n,
            'alpha': latent_net.module_.alpha.cpu().numpy(),
            'sigma_rec': latent_net.module_.sigma_rec.cpu().numpy(),
            'weight_decay': parameters['weight_decay'],

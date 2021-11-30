@@ -31,11 +31,16 @@ class LatentModule(torch.nn.Module):
         self.activation=torch.nn.ReLU(inplace=False)
 
         self.input_layer = torch.nn.Linear(6, self.n, bias=False)
-        self.input_layer.weight.data = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0).float().to(device=device)
+        self.input_layer.weight.data = self.input_mask * torch.relu(
+            self.input_layer.weight.data)
+        #self.input_layer.weight.data = torch.cat((torch.eye(6),torch.zeros(2,6)),dim=0).float().to(device=device)
         self.input_layer.weight.requires_grad = True
 
-        self.output_layer = torch.nn.Linear(self.N, 2, bias=False)
-        self.output_layer.weight.data = torch.cat((torch.zeros(2,self.n-2),torch.eye(2)),dim=1).float().to(device=device)
+
+        self.output_layer = torch.nn.Linear(self.n, 2, bias=False)
+        self.output_layer.weight.data = self.output_mask * torch.relu(
+            self.output_layer.weight.data)
+        #self.output_layer.weight.data = torch.cat((torch.zeros(2,self.n-2),torch.eye(2)),dim=1).float().to(device=device)
         self.output_layer.weight.requires_grad = True
 
         self.A = torch.nn.Parameter(torch.rand(self.N, self.N,device=device), requires_grad=True)
@@ -140,8 +145,6 @@ class LatentNet(NeuralNetRegressor):
 
         #return self.criterion_(y_true, x) / torch.var(y_true, unbiased=False)
 
-
-
         return self.criterion_(y_true[:,:,:-2], xbar @ self.module_.q) / torch.var(y_true[:,:,:-2], unbiased=False) + self.criterion_(y_true[:,:,-2:], zbar) / torch.var(y_true[:,:,-2:], unbiased=False)
 
 
@@ -157,12 +160,6 @@ class LatentNet(NeuralNetRegressor):
 
         self.optimizer_.step(step_fn)
 
-        # if self.history[-1, 'epoch']<self.max_diagonal_epoch:
-        #     self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(self.module_.input_layer.weight.data)
-        #     self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
-        # else:
-        #     self.module_.input_layer.weight.data = torch.relu(self.module_.input_layer.weight.data)
-        #     self.module_.output_layer.weight.data = torch.relu(self.module_.output_layer.weight.data)
         if self.constrained:
             self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(
                 self.module_.input_layer.weight.data)

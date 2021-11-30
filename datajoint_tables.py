@@ -150,6 +150,7 @@ class LCA_paper(dj.Manual):
     -> Model_paper
     lca_id: char(8)                   
     ---
+    n: int
     alpha: Decimal(3,2)
     sigma_rec: Decimal(3,2)
     lr: Decimal(8,7)

@@ -54,7 +54,7 @@ inputs, labels, mask, conditions  = generate_trials(
 # Initialize RNN
 rnn_net = RNNNet(
     module=RNNModule,
-    module__n=150,
+    module__n=100,
     module__connectivity='large',
     module__radius=1.5,
     module__lambda_r=parameters['lambda_r'],
