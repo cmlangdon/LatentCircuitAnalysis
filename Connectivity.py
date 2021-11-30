@@ -16,8 +16,7 @@ from numpy import linalg
 def large_connectivity(device,N,radius=1.5,recurrent_sparsity=1,input_sparsity=1,output_sparsity=1):
     Ne = int(N * 0.8)
     Ni = int(N * 0.2)
-    N_in=6
-    N_out=2
+    
     # Initialize W_rec
     W_rec = torch.empty([0,N])
     
@@ -43,11 +42,11 @@ def large_connectivity(device,N,radius=1.5,recurrent_sparsity=1,input_sparsity=1
     spec_radius = np.max(np.absolute(w))
     W_rec = radius*W_rec/spec_radius
     
-    W_in = torch.zeros([N,N_in]).float()
-    W_in[:,:] = torch.tensor(random(N, N_in, density=input_sparsity, data_rvs=stats.norm(scale=var,loc=mu_E).rvs).toarray()).float()
+    W_in = torch.zeros([N,6]).float()
+    W_in[:,:] = torch.tensor(random(N, 6, density=input_sparsity, data_rvs=stats.norm(scale=var,loc=mu_E).rvs).toarray()).float()
     
-    W_out = torch.zeros([N_out,N])
-    W_out[:,:Ne]=torch.tensor(random(N_out, Ne, density=output_sparsity, data_rvs=stats.norm(scale=var,loc=mu_E).rvs).toarray()).float()
+    W_out = torch.zeros([2,N])
+    W_out[:,:Ne]=torch.tensor(random(2, Ne, density=output_sparsity, data_rvs=stats.norm(scale=var,loc=mu_E).rvs).toarray()).float()
 
     dale_mask = torch.sign(W_rec).to(device=device).float()
     output_mask = (W_out != 0).to(device=device).float()

@@ -1,7 +1,7 @@
 #!/usr/bin/bash
-#$ -t 1-250
+#$ -t 1-200
 #$ -N lca
 #$-cwd
+#$ -l gpu=1
 #$ -l m_mem_free=20G
-#$ -pe threads 1
 python -u lca_script.py

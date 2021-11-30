@@ -145,6 +145,8 @@ class LatentNet(NeuralNetRegressor):
 
         #return self.criterion_(y_true, x) / torch.var(y_true, unbiased=False)
 
+
+
         return self.criterion_(y_true[:,:,:-2], xbar @ self.module_.q) / torch.var(y_true[:,:,:-2], unbiased=False) + self.criterion_(y_true[:,:,-2:], zbar) / torch.var(y_true[:,:,-2:], unbiased=False)
 
 
@@ -160,6 +162,12 @@ class LatentNet(NeuralNetRegressor):
 
         self.optimizer_.step(step_fn)
 
+        # if self.history[-1, 'epoch']<self.max_diagonal_epoch:
+        #     self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(self.module_.input_layer.weight.data)
+        #     self.module_.output_layer.weight.data = self.module_.output_mask * torch.relu(self.module_.output_layer.weight.data)
+        # else:
+        #     self.module_.input_layer.weight.data = torch.relu(self.module_.input_layer.weight.data)
+        #     self.module_.output_layer.weight.data = torch.relu(self.module_.output_layer.weight.data)
         if self.constrained:
             self.module_.input_layer.weight.data = self.module_.input_mask * torch.relu(
                 self.module_.input_layer.weight.data)

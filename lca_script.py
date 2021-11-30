@@ -94,6 +94,7 @@ labels = torch.cat((x,z), dim=2)
 
 # Initialize latent nets
 n=8
+
 input_mask = torch.zeros(n,6)
 input_mask[:6, :6] = torch.eye(6)
 
@@ -112,7 +113,7 @@ latent_net = LatentNet(
     warm_start=False,
     lr=parameters['lr'],
     batch_size=int(parameters['batch_size']),
-    max_epochs=500,
+    max_epochs=200,
     constrained=True,
     optimizer=torch.optim.Adam,
     device=device,

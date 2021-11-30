@@ -1,9 +1,9 @@
 #!/usr/bin/bash
-#$ -t 1-25
-#$ -N train
+#$ -t 1-20
+#$ -N langdon_model_train
 #$-cwd
+#$ -l gpu=1
 #$ -l m_mem_free=20G
-#$ -pe threads 1
 python train_models.py
 
 
